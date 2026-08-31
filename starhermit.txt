@@ -1,0 +1,3 @@
+name=Pocket Greens
+launch=index.html
+server=server.js

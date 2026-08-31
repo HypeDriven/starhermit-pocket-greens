@@ -1,0 +1,16 @@
+{
+  "name": "pocket-greens",
+  "version": "1.0.0",
+  "description": "Pocket Greens — turn-based precision sport in a whimsical garden (browser game)",
+  "main": "server.js",
+  "scripts": {
+    "test": "node test.js",
+    "start": "node server.js"
+  },
+  "keywords": ["game", "minigolf", "three.js"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}

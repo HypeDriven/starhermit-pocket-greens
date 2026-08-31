@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>smoke</title></head><body>
+<iframe id="f" src="/index.html" style="width:900px;height:600px"></iframe>
+<pre id="out">running</pre>
+<script>
+// Browser smoke test for Pocket Greens: boot → journey setup → round → strike →
+// fast-forward → results-or-continue → pause/resume → settings → back to title.
+const out = [];
+const log = (s) => { out.push(s); document.getElementById('out').textContent = out.join('\n'); };
+const f = document.getElementById('f');
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const assert = (c, msg) => { if (!c) throw new Error('assert: ' + msg); log('ok - ' + msg); };
+f.addEventListener('load', async () => {
+	try {
+		const w = f.contentWindow, d = w.document;
+		const key = (k) => d.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
+		await sleep(1500);
+		assert(d.getElementById('title-progress').textContent.includes('Journey'), 'boot reached title with progress');
+		d.getElementById('m-play').click();
+		await sleep(300);
+		assert(d.getElementById('screen-setup').classList.contains('open'), 'journey setup opens');
+		d.getElementById('setup-start').click();
+		await sleep(1500);
+		assert(d.getElementById('objective').textContent === 'Aim and strike', 'round active with aim objective');
+		assert(!d.getElementById('btn-strike').disabled, 'strike control enabled');
+
+		d.getElementById('btn-strike').click();
+		await sleep(300);
+		assert(w.PG.game.session.state.players[0].strokes === 1, 'strike consumed a stroke');
+		key('f'); // fast-forward
+		await sleep(400);
+		let resultsOpen = d.getElementById('overlay-results').classList.contains('open');
+		if (!resultsOpen) {
+			key(' '); // keyboard strike
+			await sleep(300);
+			key('f');
+			await sleep(400);
+			const p = w.PG.game.session.state.players[0];
+			assert(p.strokes + p.penalties >= 2 || w.PG.game.session.state.terminal, 'keyboard strike works');
+			resultsOpen = d.getElementById('overlay-results').classList.contains('open');
+		}
+		if (resultsOpen) {
+			assert(d.getElementById('results-body').textContent.length > 20, 'results show score breakdown');
+			d.getElementById('r-menu').click();
+			await sleep(300);
+			assert(d.getElementById('screen-title').classList.contains('open'), 'results → main menu');
+		} else {
+			d.getElementById('btn-pause').click();
+			await sleep(200);
+			assert(d.getElementById('overlay-pause').classList.contains('open'), 'pause opens');
+			d.getElementById('p-resume').click();
+			await sleep(200);
+			assert(!d.getElementById('overlay-pause').classList.contains('open'), 'resume closes pause');
+			d.getElementById('btn-settings').click();
+			await sleep(200);
+			assert(d.getElementById('overlay-settings').classList.contains('open'), 'settings opens');
+			d.getElementById('settings-close').click();
+			await sleep(200);
+			assert(!d.getElementById('overlay-settings').classList.contains('open'), 'settings closes');
+		}
+		log('SMOKE OK');
+	} catch (e) { log('SMOKE FAIL: ' + e.message); }
+});
+</script>
+</body></html>

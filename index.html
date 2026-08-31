@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Pocket Greens</title>
+<style>
+:root {
+  --bg: #1c2a1e; --panel: #24382a; --panel-2: #2d4534; --ink: #f0f4ec; --ink-dim: #b9c8b4;
+  --accent: #7ec96e; --accent-2: #f2c14e; --danger: #e06a5a; --focus: #ffd54e;
+  --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--ink); overflow: hidden;
+  font-size: 16px; line-height: 1.45;
+}
+body.large-text { font-size: 19px; }
+body.high-contrast { --bg: #000; --panel: #111; --panel-2: #1c1c1c; --ink: #fff; --ink-dim: #ddd; --accent: #ffff00; --accent-2: #00ffff; }
+button, input, select { font: inherit; }
+button {
+  background: var(--panel-2); color: var(--ink); border: 2px solid transparent; border-radius: 10px;
+  padding: 0.6rem 1rem; cursor: pointer; min-height: 44px; min-width: 44px;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #10220f; font-weight: 700; }
+button.danger { background: var(--danger); color: #fff; }
+button:disabled { opacity: 0.45; cursor: default; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { line-height: 1.2; margin: 0 0 0.5rem; }
+p { margin: 0.25rem 0; max-width: 70ch; }
+
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#playfield { position: relative; flex: 1; min-height: 0; }
+#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+
+/* ---- status bar ---- */
+#statusbar {
+  display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+  padding: calc(0.4rem + var(--safe-top)) calc(0.75rem + var(--safe-right)) 0.4rem calc(0.75rem + var(--safe-left));
+  background: var(--panel); z-index: 5;
+}
+#statusbar .spacer { flex: 1; }
+#objective { font-weight: 600; }
+.stat { color: var(--ink-dim); } .stat b { color: var(--ink); }
+
+/* ---- rails & tray ---- */
+.rail { position: absolute; top: 0.5rem; z-index: 4; display: flex; flex-direction: column; gap: 0.5rem;
+  background: color-mix(in srgb, var(--panel) 88%, transparent); border-radius: 12px; padding: 0.6rem; max-width: 17rem; }
+#rail-left { left: calc(0.5rem + var(--safe-left)); }
+#rail-right { right: calc(0.5rem + var(--safe-right)); align-items: stretch; }
+.rail h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
+#action-tray {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(0.5rem + var(--safe-bottom)); display: flex; gap: 0.5rem; z-index: 4;
+}
+#power-wrap { display: flex; align-items: center; gap: 0.5rem; background: color-mix(in srgb, var(--panel) 88%, transparent); border-radius: 12px; padding: 0.4rem 0.7rem; }
+#power { width: 9rem; accent-color: var(--accent); }
+
+/* ---- screens & overlays ---- */
+.screen {
+  position: absolute; inset: 0; z-index: 10; display: none; overflow: auto;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  padding: calc(1rem + var(--safe-top)) calc(1rem + var(--safe-right)) calc(1rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
+}
+.screen.open { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
+.screen .card { background: var(--panel); border-radius: 16px; padding: 1.25rem 1.5rem; max-width: 34rem; width: 100%; }
+.menu { display: flex; flex-direction: column; gap: 0.5rem; }
+.menu button { text-align: left; }
+.menu button small { display: block; color: var(--ink-dim); font-weight: 400; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.5rem; width: 100%; }
+.grid button.locked { opacity: 0.5; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
+.setting-row label { flex: 1; }
+.setting-row input[type="range"] { width: 9rem; accent-color: var(--accent); }
+.overlay {
+  position: absolute; inset: 0; z-index: 12; display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.55); padding: 1rem;
+}
+.overlay.open { display: flex; }
+.overlay .card { background: var(--panel); border-radius: 16px; padding: 1.25rem 1.5rem; max-width: 30rem; width: 100%; max-height: 90%; overflow: auto; }
+
+/* ---- captions / live ---- */
+#captions {
+  position: absolute; bottom: calc(4.5rem + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.75); border-radius: 8px; padding: 0.3rem 0.8rem; z-index: 6; display: none;
+}
+#captions.show { display: block; }
+#toast { position: absolute; top: calc(3.5rem + var(--safe-top)); left: 50%; transform: translateX(-50%);
+  background: var(--panel-2); border-radius: 10px; padding: 0.5rem 1rem; z-index: 14; display: none; }
+#toast.show { display: block; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- responsive ---- */
+@media (max-width: 1023px) {
+  .rail { max-width: 13rem; font-size: 0.9rem; }
+}
+@media (max-width: 700px) {
+  .rail { position: absolute; top: auto; bottom: calc(4.6rem + var(--safe-bottom)); max-height: 40%; overflow: auto; }
+  #rail-left { left: calc(0.4rem + var(--safe-left)); }
+  #rail-right { right: calc(0.4rem + var(--safe-right)); }
+  .rail.collapsed { display: none; }
+  #action-tray { width: calc(100% - 1rem - var(--safe-left) - var(--safe-right)); justify-content: center; flex-wrap: wrap; }
+  #power { width: 6.5rem; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #statusbar { padding-top: calc(0.25rem + var(--safe-top)); padding-bottom: 0.25rem; font-size: 0.85rem; }
+  .rail { max-height: 60%; overflow: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="statusbar" role="banner">
+    <span id="objective" role="status">Pocket Greens</span>
+    <span class="stat">Hole <b id="stat-hole">–</b></span>
+    <span class="stat">Par <b id="stat-par">–</b></span>
+    <span class="stat">Strokes <b id="stat-strokes">0</b></span>
+    <span class="stat">Total <b id="stat-total">0</b></span>
+    <span class="spacer"></span>
+    <button id="btn-pause" aria-label="Pause game" disabled>⏸ Pause</button>
+  </header>
+
+  <main id="playfield">
+    <canvas id="game-canvas" aria-label="Miniature golf course view" role="img"></canvas>
+
+    <aside id="rail-left" class="rail" aria-label="Objective and progress">
+      <h2>Progress</h2>
+      <div id="rail-progress">Choose a mode to begin.</div>
+    </aside>
+
+    <aside id="rail-right" class="rail" aria-label="Actions and status">
+      <h2>Status</h2>
+      <div id="rail-status"></div>
+      <button id="btn-help">Help</button>
+      <button id="btn-settings">Settings</button>
+    </aside>
+
+    <div id="action-tray" role="group" aria-label="Stroke controls">
+      <div id="power-wrap">
+        <label for="power">Power</label>
+        <input id="power" type="range" min="1" max="100" value="50" />
+        <b id="power-val">50</b>
+      </div>
+      <button id="btn-strike" class="primary" disabled>Strike</button>
+      <button id="btn-undo" disabled>Undo</button>
+      <button id="btn-hint" disabled>Hint</button>
+    </div>
+
+    <div id="captions" aria-hidden="true"></div>
+    <div id="toast" role="status"></div>
+    <div id="live" class="visually-hidden" aria-live="polite"></div>
+    <div id="live-urgent" class="visually-hidden" aria-live="assertive"></div>
+  </main>
+
+  <!-- Title / home -->
+  <section id="screen-title" class="screen open" aria-labelledby="title-h">
+    <div class="card">
+      <h1 id="title-h">Pocket Greens</h1>
+      <p>A whimsical garden of miniature courses. Aim, set power, and hole out in the fewest strokes.</p>
+      <nav class="menu" aria-label="Main menu">
+        <button id="m-play" class="primary">Play — continue Journey<small>Reach the green in two actions</small></button>
+        <button id="m-learn">Learn<small>Interactive lessons, one rule at a time</small></button>
+        <button id="m-journey">Journey<small>44 authored and seeded stages</small></button>
+        <button id="m-daily">Daily Challenge<small>One shared course per UTC day</small></button>
+        <button id="m-practice">Practice<small>Any hole, undo allowed, unranked</small></button>
+        <button id="m-challenge">Challenges<small>Constrained goals for mastery</small></button>
+        <button id="m-hosted">Hosted Play<small>Private match against a friend or AI</small></button>
+      </nav>
+      <p class="stat" id="title-progress"></p>
+    </div>
+  </section>
+
+  <!-- Mode setup -->
+  <section id="screen-setup" class="screen" aria-labelledby="setup-h">
+    <div class="card">
+      <h2 id="setup-h">Setup</h2>
+      <div id="setup-body"></div>
+      <div class="menu" style="margin-top:1rem">
+        <button id="setup-start" class="primary">Start</button>
+        <button id="setup-back">Back</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hosted lobby -->
+  <section id="screen-lobby" class="screen" aria-labelledby="lobby-h">
+    <div class="card">
+      <h2 id="lobby-h">Hosted Match</h2>
+      <div id="lobby-body"></div>
+      <div class="menu" style="margin-top:1rem">
+        <button id="lobby-back">Leave lobby</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <div id="overlay-pause" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-h">
+    <div class="card">
+      <h2 id="pause-h">Paused</h2>
+      <div class="menu">
+        <button id="p-resume" class="primary">Resume</button>
+        <button id="p-settings">Settings</button>
+        <button id="p-help">Help</button>
+        <button id="p-restart">Restart hole</button>
+        <button id="p-leave" class="danger">Leave round</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="overlay-settings" class="overlay" role="dialog" aria-modal="true" aria-labelledby="settings-h">
+    <div class="card">
+      <h2 id="settings-h">Settings</h2>
+      <div id="settings-body"></div>
+      <div class="menu" style="margin-top:1rem"><button id="settings-close" class="primary">Done</button></div>
+    </div>
+  </div>
+
+  <!-- Help -->
+  <div id="overlay-help" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-h">
+    <div class="card">
+      <h2 id="help-h">How to play</h2>
+      <div id="help-body"></div>
+      <div class="menu" style="margin-top:1rem"><button id="help-close" class="primary">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="overlay-results" class="overlay" role="dialog" aria-modal="true" aria-labelledby="results-h">
+    <div class="card">
+      <h2 id="results-h">Results</h2>
+      <div id="results-body"></div>
+      <div class="menu" style="margin-top:1rem">
+        <button id="r-next" class="primary">Next</button>
+        <button id="r-retry">Retry</button>
+        <button id="r-menu">Main menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WebGL failure -->
+  <div id="overlay-compat" class="overlay" role="alertdialog" aria-labelledby="compat-h">
+    <div class="card">
+      <h2 id="compat-h">3D unavailable</h2>
+      <p>Your browser could not start WebGL. Your progress and settings are safe. Try updating your browser or enabling hardware acceleration, then reload.</p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import * as THREE from './node_modules/three/build/three.module.min.js';
+  window.THREE = THREE;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
+<script src="./rules.js"></script>
+<script src="./content.js"></script>
+<script src="./session.js"></script>
+<script src="./audio.js"></script>
+<script src="./platform.js"></script>
+<script src="./render.js"></script>
+<script src="./ui.js"></script>
+<script src="./bootstrap.js"></script>
+</body>
+</html>

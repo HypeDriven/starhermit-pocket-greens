@@ -1,0 +1,86 @@
+[
+  {
+    "name": "ui-click",
+    "seconds": 1,
+    "prompt": "Short soft wooden button click, gentle fingertip tap on a small panel.",
+    "event": "ui"
+  },
+  {
+    "name": "aim-tick",
+    "seconds": 1,
+    "prompt": "Very short quiet mechanical dial tick, a single ratchet click while aiming.",
+    "event": "aim-tick"
+  },
+  {
+    "name": "invalid-buzz",
+    "seconds": 1,
+    "prompt": "Short low dull error buzz with a soft denied wooden thunk.",
+    "event": "invalid"
+  },
+  {
+    "name": "strike-soft",
+    "seconds": 1,
+    "prompt": "Gentle putter tap on a golf ball, soft plastic knock on a minigolf green.",
+    "event": "strike"
+  },
+  {
+    "name": "strike-hard",
+    "seconds": 1,
+    "prompt": "Firm putter strike on a golf ball, sharp bright knock with a short room tail.",
+    "event": "strike"
+  },
+  {
+    "name": "bounce-wall",
+    "seconds": 1,
+    "prompt": "Golf ball bouncing off a padded wooden minigolf wall, dull hollow knock.",
+    "event": "bounce"
+  },
+  {
+    "name": "bounce-mover",
+    "seconds": 1,
+    "prompt": "Golf ball knocking against a moving wooden obstacle, deep hollow clunk.",
+    "event": "bounce"
+  },
+  {
+    "name": "bounce-turf",
+    "seconds": 1,
+    "prompt": "Golf ball bouncing softly once on short grass turf, muted grassy thud.",
+    "event": "bounce"
+  },
+  {
+    "name": "splash",
+    "seconds": 2,
+    "prompt": "Small golf ball splashing into a garden pond, brief water plop with light droplets.",
+    "event": "splash"
+  },
+  {
+    "name": "holed",
+    "seconds": 2,
+    "prompt": "Golf ball dropping into a metal cup, rattling around and settling with a cheerful plink.",
+    "event": "holed"
+  },
+  {
+    "name": "capped",
+    "seconds": 2,
+    "prompt": "Short descending disappointed slide whistle, soft and apologetic.",
+    "event": "capped"
+  },
+  {
+    "name": "round-complete",
+    "seconds": 3,
+    "prompt": "Short cheerful four-note marimba fanfare rising in pitch, warm and friendly.",
+    "event": "round-complete"
+  },
+  {
+    "name": "session-complete",
+    "seconds": 3,
+    "prompt": "Bright celebratory five-note chime fanfare, triumphant finish with a gentle shimmer.",
+    "event": "session-complete"
+  },
+  {
+    "name": "undo",
+    "seconds": 1,
+    "prompt": "Quick soft reverse swoosh, like a sheet of paper sliding back into place.",
+    "event": "undo"
+  }
+]
