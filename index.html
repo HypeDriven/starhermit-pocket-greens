@@ -67,7 +67,10 @@ p { margin: 0.25rem 0; max-width: 70ch; }
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   padding: calc(1rem + var(--safe-top)) calc(1rem + var(--safe-right)) calc(1rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
 }
-.screen.open { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
+.screen.open { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+/* margin:auto centers the card when it fits, but yields to top-aligned scrolling when it
+   is taller than the viewport — plain justify-content:center would clip the top instead. */
+.screen.open .card { margin: auto; }
 .screen .card { background: var(--panel); border-radius: 16px; padding: 1.25rem 1.5rem; max-width: 34rem; width: 100%; }
 .menu { display: flex; flex-direction: column; gap: 0.5rem; }
 .menu button { text-align: left; }
@@ -77,6 +80,7 @@ p { margin: 0.25rem 0; max-width: 70ch; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; }
 .setting-row label { flex: 1; }
 .setting-row input[type="range"] { width: 9rem; accent-color: var(--accent); }
+.setting-row select { min-width: 0; max-width: 60%; min-height: 44px; }
 .overlay {
   position: absolute; inset: 0; z-index: 12; display: none; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.55); padding: 1rem;

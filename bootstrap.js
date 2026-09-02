@@ -356,20 +356,26 @@
 			const unlocked = G.progress.journey.unlocked;
 			const idx = preset != null ? preset : Math.min(unlocked - 1, CONTENT.JOURNEY.length - 1);
 			setupCtx.index = idx;
-			const grid = CONTENT.JOURNEY.map((c, i) => {
+			// 44 stages can't fit on small screens as buttons; a native select keeps every
+			// stage reachable (locked ones disabled) without overflowing the viewport.
+			const options = CONTENT.JOURNEY.map((c, i) => {
 				const locked = i >= unlocked;
 				const best = G.progress.journey.stars[c.id];
-				return '<button data-idx="' + i + '"' + (locked ? ' class="locked" disabled' : '') + '>' +
-					(i + 1) + '. par ' + c.par + (best ? ' ★' + best : '') + '</button>';
+				return '<option value="' + i + '"' + (locked ? ' disabled' : '') + (i === idx ? ' selected' : '') + '>' +
+					(i + 1) + '. par ' + c.par + (best ? ' ★' + best : '') + (locked ? ' — locked' : '') + '</option>';
 			}).join('');
 			UI.renderSetup({
 				title: 'Journey', desc: '44 stages that introduce one concept at a time, then combine them. Mastery stages every chapter.',
 				duration: '~2 minutes per stage', players: '1', assists: 'Hints available', ranked: false,
 				extra: 'Unlocked: ' + unlocked + ' / ' + CONTENT.JOURNEY.length,
-				gridHtml: '<div class="grid" role="group" aria-label="Stages">' + grid + '</div>',
+				gridHtml: '<div class="setting-row"><label for="setup-stage">Stage</label>' +
+					'<select id="setup-stage" aria-label="Stages">' + options + '</select></div>',
 			});
-			document.querySelectorAll('#setup-body [data-idx]').forEach(b =>
-				b.addEventListener('click', () => { setupCtx.index = Number(b.dataset.idx); UI.toast('Stage ' + (setupCtx.index + 1) + ' selected'); }));
+			const stageSel = document.getElementById('setup-stage');
+			stageSel.addEventListener('change', () => {
+				setupCtx.index = Number(stageSel.value);
+				UI.toast('Stage ' + (setupCtx.index + 1) + ' selected');
+			});
 		} else if (mode === 'daily') {
 			UI.renderSetup({
 				title: 'Daily Challenge', desc: 'One shared seed and ruleset per UTC day, synchronized to platform time. Everyone plays the same green.',
