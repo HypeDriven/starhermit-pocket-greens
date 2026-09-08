@@ -13,7 +13,7 @@ function three() { return (typeof window !== 'undefined') ? window.THREE : null;
 const CAM = {
 	elevationDeg: 52,          // low-distortion perspective, near-tabletop feel
 	fov: 42,
-	margin: 1.25,              // course-to-frame margin
+	margin: 1.5,               // course-to-frame margin (leaves room for the HUD rails/tray)
 	transitionMs: 700,         // hole-change swoop (disabled by reduced motion)
 };
 
@@ -42,7 +42,8 @@ function init(canvas, opts) {
 	if (!THREE) throw new Error('three-not-loaded');
 	opts = opts || {};
 	R.canvas = canvas;
-	R.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+	const q0 = QUALITY[opts.tier] || QUALITY.medium;
+	R.renderer = new THREE.WebGLRenderer({ canvas, antialias: q0.antialias, powerPreference: 'high-performance' });
 	R.renderer.outputColorSpace = THREE.SRGBColorSpace;
 	R.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	R.renderer.toneMappingExposure = 1.0;
@@ -87,6 +88,11 @@ function init(canvas, opts) {
 
 	setQuality(opts.tier || 'medium');
 	R.reducedMotion = !!opts.reducedMotion;
+	// a re-init (context restore) must not leave the previous rAF chain running
+	if (R.raf) cancelAnimationFrame(R.raf);
+	R.courseGroup = null;   // the old group belongs to the discarded scene
+	R.flag = null;
+	R.ballMeshes = {};
 	R.running = true;
 	canvas.addEventListener('webglcontextlost', onContextLost, false);
 	loop();
@@ -113,6 +119,7 @@ function disposeCourse() {
 	});
 	R.scene.remove(R.courseGroup);
 	R.courseGroup = null;
+	R.flag = null;
 	R.movers = [];
 	R.waterMats = [];
 	R.ripples = [];
@@ -230,11 +237,12 @@ function loadCourse(course, theme) {
 	const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0xf0f0f0 }));
 	pole.position.set(course.cup.x, 0.55, course.cup.y);
 	const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), new THREE.MeshBasicMaterial({ color: R.highContrast ? 0xffff00 : 0xe64545, side: THREE.DoubleSide }));
-	flag.position.set(course.cup.x + 0.21, 0.95, course.cup.y);
 	flag.userData.layer = 'ui-anchor';
 	g.add(pole, flag);
+	R.flag = flag;
 
 	R.courseGroup = g;
+	R.scene.add(g);
 	frameCamera(course, true);
 }
 
@@ -256,19 +264,54 @@ const PLAYER_COLORS = [0xf5f6fa, 0xf2c14e, 0x7ec8e3, 0xe08ab8];
 
 // ---------- camera ----------
 
+// Distance at which a spanX-by-spanZ footprint fits the frame. Width is fitted against the
+// horizontal field of view and depth against the vertical one: measuring the widest course
+// dimension against the vertical FOV alone pushes the camera much too far back.
+function fitDistance(spanX, spanZ, aspect) {
+	const vFov = CAM.fov * Math.PI / 180;
+	const el = CAM.elevationDeg * Math.PI / 180;
+	const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+	return Math.max(
+		(spanX * CAM.margin) / (2 * Math.tan(hFov / 2)),
+		(spanZ * CAM.margin * Math.sin(el)) / (2 * Math.tan(vFov / 2)));
+}
+
 function cameraTarget(course) {
 	const THREE = three();
 	const cx = course.w / 2, cz = course.h / 2;
-	const dist = (Math.max(course.w, course.h) * CAM.margin) / (2 * Math.tan((CAM.fov * Math.PI / 180) / 2));
 	const el = CAM.elevationDeg * Math.PI / 180;
+	const aspect = (R.camera && R.camera.aspect) || 1.6;
+	// Courses are wide; on a portrait display, viewing them from the side lets the long axis
+	// run down the screen instead of shrinking the whole green to fit the narrow one.
+	const flat = fitDistance(course.w, course.h, aspect);
+	const turned = fitDistance(course.h, course.w, aspect);
+	const az = turned < flat * 0.95 ? Math.PI / 2 : 0;
+	const dist = az ? turned : flat;
+	const horiz = Math.cos(el) * dist;
 	return {
-		pos: new THREE.Vector3(cx, Math.sin(el) * dist, cz + Math.cos(el) * dist),
+		pos: new THREE.Vector3(cx + Math.sin(az) * horiz, Math.sin(el) * dist, cz + Math.cos(az) * horiz),
 		look: new THREE.Vector3(cx, 0, cz),
+		azimuth: az,
 	};
+}
+
+// Screen-space drag delta (pixels) -> course-space delta, undoing the camera's elevation
+// foreshortening and quarter turn so a pull-back aims where the player sees it aim.
+function courseDelta(px, py) {
+	const el = CAM.elevationDeg * Math.PI / 180;
+	const sx = px, sy = py / Math.sin(el);
+	const c = Math.cos(R.azimuth || 0), s = Math.sin(R.azimuth || 0);
+	return { x: sx * c + sy * s, y: -sx * s + sy * c };
 }
 
 function frameCamera(course, instant) {
 	const t = cameraTarget(course);
+	R.azimuth = t.azimuth;
+	// the flag is a single quad: turn it to face the camera so it never goes edge-on
+	if (R.flag) {
+		R.flag.rotation.y = t.azimuth;
+		R.flag.position.set(course.cup.x + 0.21 * Math.cos(t.azimuth), 0.95, course.cup.y - 0.21 * Math.sin(t.azimuth));
+	}
 	if (instant || R.reducedMotion) {
 		R.camera.position.copy(t.pos);
 		R.camera.lookAt(t.look);
@@ -294,7 +337,7 @@ function updateCamera(dtMs) {
 function applySnapshot(state) {
 	if (!state || !R.course) return;
 	state.players.forEach((p, i) => {
-		const m = ballMesh(p.id, R.theme.palette.ball && i === 0 ? PLAYER_COLORS[i % 4] : PLAYER_COLORS[i % 4]);
+		const m = ballMesh(p.id, PLAYER_COLORS[i % PLAYER_COLORS.length]);
 		m.position.set(p.ball.x, RULES.BALL_R, p.ball.y);
 		m.visible = !p.holed;
 	});
@@ -380,14 +423,15 @@ function loop() {
 	const t = performance.now();
 	const dtMs = Math.min(64, Math.max(0, t - (lastT || t)));
 	lastT = t;
+	if (R.paused) return;
 	const dt = dtMs / 1000;
 
 	updateCamera(dtMs);
 
-	// movers are a pure function of the simulation tick + interpolation clock
+	// movers are a pure function of the simulation tick being displayed
+	const shownTick = (R.trace && R.trace[R.traceI]) ? R.trace[R.traceI].t : R.lastTick;
 	for (const mv of R.movers) {
-		const tick = R.lastTick + (R.trace ? R.traceClock / (RULES.DT * 1000) * RULES.DT : 0);
-		const p = RULES.moverPos(mv.def, R.trace ? R.trace[R.traceI] ? R.trace[R.traceI].t : R.lastTick : R.lastTick);
+		const p = RULES.moverPos(mv.def, shownTick);
 		mv.mesh.position.set(p.x, 0.35, p.y);
 	}
 
@@ -409,7 +453,8 @@ function loop() {
 		const state = R.currentState;
 		if (state) {
 			const me = state.players[state.currentPlayer];
-			const m = ballMesh(me.id, PLAYER_COLORS[0]);
+			const m = ballMesh(me.id, PLAYER_COLORS[state.currentPlayer % PLAYER_COLORS.length]);
+			m.visible = true;
 			m.position.set(x, RULES.BALL_R, y);
 		}
 		// fire trace events at approximately their simulated time
@@ -432,7 +477,7 @@ function finishTrace() {
 	const state = R.currentState;
 	if (state && last) {
 		const me = state.players[state.currentPlayer];
-		ballMesh(me.id, PLAYER_COLORS[0]).position.set(last.x, RULES.BALL_R, last.y);
+		ballMesh(me.id, PLAYER_COLORS[state.currentPlayer % PLAYER_COLORS.length]).position.set(last.x, RULES.BALL_R, last.y);
 	}
 	for (const e of R.traceEvents) {
 		if (!e._fired && (e.type === 'splash' || e.type === 'bounce')) { e._fired = true; if (R.onEvent) R.onEvent(e); }
@@ -450,11 +495,21 @@ function resize(w, h) {
 	R.renderer.setSize(Math.floor(w), Math.floor(h), false);
 	R.camera.aspect = w / h;
 	R.camera.updateProjectionMatrix();
+	// framing depends on the aspect ratio, so a resize/rotate has to re-frame the course
+	if (R.course) frameCamera(R.course, true);
 }
 
 function setQuality(tier) {
 	if (!QUALITY[tier]) tier = 'medium';
+	const shrinking = R.particles && QUALITY[tier].particles < QUALITY[R.tier].particles;
 	R.tier = tier;
+	if (shrinking) {
+		// particles above the new budget stop being updated: retire them so none freeze on screen
+		const arr = R.particles.geometry.attributes.position.array;
+		for (let i = 0; i < R.particleData.length; i++) { R.particleData[i].life = 0; arr[i * 3 + 1] = -10; }
+		R.particleCursor = 0;
+		R.particles.geometry.attributes.position.needsUpdate = true;
+	}
 	if (R.renderer) {
 		R.renderer.shadowMap.enabled = QUALITY[tier].shadows;
 		if (R.keyLight) R.keyLight.castShadow = QUALITY[tier].shadows;
@@ -474,7 +529,9 @@ function setHighContrast(v) { R.highContrast = !!v; }
 function skipTrace() { finishTrace(); }
 
 const api = {
-	CAM, QUALITY, init, loadCourse, applySnapshot, setAim, playTrace, resize,
+	setPaused(v) { R.paused = !!v; },
+	isPlaying() { return !!R.trace; },
+	CAM, QUALITY, init, loadCourse, applySnapshot, setAim, playTrace, resize, courseDelta,
 	setQuality, setHidden, setReducedMotion, setHighContrast, disposeCourse, skipTrace,
 	set currentState(v) { R.currentState = v; },
 	get currentState() { return R.currentState; },

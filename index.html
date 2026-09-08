@@ -104,7 +104,12 @@ p { margin: 0.25rem 0; max-width: 70ch; }
   .rail { max-width: 13rem; font-size: 0.9rem; }
 }
 @media (max-width: 700px) {
-  .rail { position: absolute; top: auto; bottom: calc(4.6rem + var(--safe-bottom)); max-height: 40%; overflow: auto; }
+  /* Two 13rem rails plus a wrapping action tray do not fit a phone: keep the rails at the
+     top, each under half the width, so neither overlaps the other nor the stroke controls. */
+  .rail { position: absolute; top: calc(0.4rem + var(--safe-top)); bottom: auto;
+    max-width: calc(50% - 0.6rem); max-height: 38%; overflow: auto; font-size: 0.82rem; padding: 0.45rem; }
+  .rail h2 { font-size: 0.8rem; margin-bottom: 0.25rem; }
+  .rail button { min-height: 38px; padding: 0.35rem 0.6rem; }
   #rail-left { left: calc(0.4rem + var(--safe-left)); }
   #rail-right { right: calc(0.4rem + var(--safe-right)); }
   .rail.collapsed { display: none; }

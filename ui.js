@@ -23,8 +23,21 @@
 
 	// ---------- screens & overlays ----------
 
+	// Controls that sit behind a full-screen menu are covered visually but would still be
+	// reachable with Tab; take them out of the tab order while a screen is showing.
+	const BACKDROP = ['rail-left', 'rail-right', 'action-tray'];
+	function setBackdropInert(inert) {
+		for (const id of BACKDROP) {
+			const el = $(id);
+			if (!el) continue;
+			el.inert = inert;
+			if (inert) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden');
+		}
+	}
+
 	function showScreen(id) {
 		for (const s of SCREENS) $(s).classList.toggle('open', s === id);
+		setBackdropInert(!!id);
 		if (id) {
 			const first = $(id).querySelector('button.primary, button');
 			if (first) first.focus();
@@ -32,8 +45,11 @@
 		emit('screen', id);
 	}
 
+	const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 	function openOverlay(id) {
-		ui.lastFocus = document.activeElement;
+		// only remember the pre-modal focus for the first modal in a stack
+		if (!anyOverlayOpen()) ui.lastFocus = document.activeElement;
 		$(id).classList.add('open');
 		const first = $(id).querySelector('button.primary, button');
 		if (first) first.focus();
@@ -41,8 +57,26 @@
 
 	function closeOverlay(id) {
 		$(id).classList.remove('open');
-		if (ui.lastFocus && document.contains(ui.lastFocus)) ui.lastFocus.focus();
+		if (anyOverlayOpen()) {
+			const next = $(topOverlay()).querySelector('button.primary, button');
+			if (next) next.focus();
+			return;
+		}
+		if (ui.lastFocus && document.contains(ui.lastFocus) && !ui.lastFocus.disabled) ui.lastFocus.focus();
 		ui.lastFocus = null;
+	}
+
+	// aria-modal only promises modality; Tab still has to be confined by hand.
+	function trapFocus(e) {
+		if (e.key !== 'Tab') return;
+		const top = topOverlay();
+		if (!top) return;
+		const items = Array.from($(top).querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null);
+		if (!items.length) return;
+		const first = items[0], last = items[items.length - 1];
+		if (!$(top).contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+		if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+		else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 	}
 
 	function anyOverlayOpen() { return OVERLAYS.some(o => $(o).classList.contains('open')); }
@@ -245,7 +279,8 @@
 		$('btn-strike').addEventListener('click', () => emit('strike'));
 		$('btn-undo').addEventListener('click', () => emit('undo'));
 		$('btn-hint').addEventListener('click', () => emit('hint'));
-		$('power').addEventListener('input', () => emit('power', getPower()));
+		$('power').addEventListener('input', () => { $('power-val').textContent = getPower(); emit('power', getPower()); });
+		document.addEventListener('keydown', trapFocus, true);
 	}
 
 	function init(settings, progress) {

@@ -5,12 +5,20 @@
   "main": "server.js",
   "scripts": {
     "test": "node test.js",
+    "test:e2e": "node tests/e2e.mjs",
     "start": "node server.js"
   },
-  "keywords": ["game", "minigolf", "three.js"],
+  "keywords": [
+    "game",
+    "minigolf",
+    "three.js"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "SEE LICENSE IN LICENSE.md",
   "dependencies": {
     "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
   }
 }

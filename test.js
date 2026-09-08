@@ -4,6 +4,7 @@
 // content validators, fuzz, golden sessions, and a server smoke test.
 
 const assert = require('assert');
+const path = require('path');
 const RULES = require('./rules');
 const CONTENT = require('./content');
 const SESSION = require('./session');
@@ -250,6 +251,25 @@ async function serverTests() {
 
 	const idx = await (await fetch(base + '/')).text();
 	assert.ok(idx.includes('Pocket Greens'));
+
+	// static serving must not escape the game root. fetch() normalises "/.." away, so the
+	// raw path check goes over a hand-built request; the boundary predicate is asserted
+	// directly because a sibling escape resolves to a path that simply does not exist here.
+	const rawGet = (rawPath) => new Promise((resolve, reject) => {
+		const req = require('http').request({ host: '127.0.0.1', port, method: 'GET', path: rawPath },
+			(r) => { r.resume(); resolve(r.statusCode); });
+		req.on('error', reject);
+		req.end();
+	});
+	for (const escape of ['/../../etc/passwd', '/./../../etc/hosts', '/.server-data.json', '/.git/config']) {
+		const code = await rawGet(escape);
+		assert.strictEqual(code, 403, escape + ' returned ' + code);
+	}
+	const ROOT = server.ROOT;
+	assert.ok(server.isInsideRoot(ROOT));
+	assert.ok(server.isInsideRoot(path.join(ROOT, 'index.html')));
+	assert.ok(!server.isInsideRoot(ROOT + '-elsewhere/secret.txt'), 'sibling directory must be rejected');
+	assert.ok(!server.isInsideRoot('/etc/passwd'));
 
 	const created = await (await fetch(base + '/api/v1/sessions', {
 		method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ players: 2 }),

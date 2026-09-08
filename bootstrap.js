@@ -56,6 +56,14 @@
 		PLATFORM.saveSettings(s);
 	}
 
+	// ---------- player identity ----------
+
+	// The seat this client controls. Solo/practice sessions always seat the human as
+	// 'you'; hosted matches use the server-assigned seat id from the lobby.
+	function localPlayerId() { return G.hosted ? G.hosted.playerId : 'you'; }
+	function isOpponent(id) { return id !== localPlayerId(); }
+	function playerLabel(id) { return isOpponent(id) ? (G.hosted ? id : 'AI') : 'You'; }
+
 	// ---------- HUD refresh ----------
 
 	function refreshHud() {
@@ -64,11 +72,11 @@
 		const st = sess.state;
 		const course = sess.holes[sess.holeIndex];
 		const me = st.players[st.currentPlayer];
-		const t = sess.totals[me.id];
+		const t = sess.totals[me.id] || { strokes: 0, penalties: 0, holes: 0 };
 		const objective = G.learn
 			? CONTENT.TUTORIALS.find(x => x.id === G.learn.tutorialId).title + ' — ' + G.learn.stepText
 			: st.terminal ? 'Round complete'
-			: st.phase === 'aim' ? (me.id === 'ai' ? 'Opponent is aiming…' : 'Aim and strike')
+			: st.phase === 'aim' ? (isOpponent(me.id) ? 'Opponent is aiming…' : 'Aim and strike')
 			: 'Ball rolling…';
 		UI.setHud({
 			objective,
@@ -80,14 +88,14 @@
 		});
 		const rows = Object.keys(sess.totals).map(id => {
 			const tt = sess.totals[id];
-			return '<p>' + (id === 'ai' ? 'AI' : 'You') + ': <b>' + (tt.strokes + tt.penalties) + '</b> over ' + tt.holes + ' hole(s)</p>';
+			return '<p>' + playerLabel(id) + ': <b>' + (tt.strokes + tt.penalties) + '</b> over ' + tt.holes + ' hole(s)</p>';
 		}).join('');
 		UI.setRails(
 			'<p>' + modeLabel() + '</p><p>Seed: <code>' + sess.seed + '</code></p>' + rows,
-			st.phase === 'aim' && me.id !== 'ai'
+			st.phase === 'aim' && !isOpponent(me.id)
 				? '<p>Drag back from the ball or use arrow keys. Power ' + Math.round(G.aim.power) + '%.</p>'
-				: '<p>' + (me.id === 'ai' ? 'AI turn' : 'Resolving…') + '</p>');
-		const canAct = st.phase === 'aim' && me.id !== 'ai' && !st.terminal;
+				: '<p>' + (isOpponent(me.id) ? 'Opponent turn' : 'Resolving…') + '</p>');
+		const canAct = st.phase === 'aim' && !isOpponent(me.id) && !st.terminal;
 		UI.setControls({
 			canStrike: canAct,
 			canUndo: canAct && sess.mode === 'practice' && sess.undone.length > 0,
@@ -107,6 +115,9 @@
 		transition('preparing', 'start-' + mode);
 		const players = opts.players || ['you'];
 		G.mode = mode;
+		RENDER.setPaused(false);
+		if (mode !== 'learn') G.learn = null; // a lesson must not leak into the next round's HUD
+		clearTimeout(G.countdownTimer);
 		G.session = SESSION.newSession({
 			id: 'local-' + Date.now().toString(36),
 			seed: opts.seed || (mode + '-' + holes[0].id),
@@ -125,7 +136,12 @@
 		G.countdown = 2;
 		UI.showScreen(null);
 		UI.toast(holes[0].tutorial ? 'Lesson: ' + holes[0].tutorial : modeLabel() + ' — hole 1');
-		setTimeout(() => { transition('active', 'countdown-complete'); refreshHud(); defaultAim(); }, G.settings.graphics.reducedMotion ? 100 : 900);
+		G.countdownTimer = setTimeout(() => {
+			// a pause taken during the countdown must survive it
+			if (!G.session || G.machine !== 'countdown') return;
+			transition('active', 'countdown-complete');
+			afterTurn(); // hands off to the opponent when they open the hole
+		}, G.settings.graphics.reducedMotion ? 100 : 900);
 		refreshHud();
 	}
 
@@ -154,7 +170,7 @@
 		const sess = G.session;
 		if (!sess || sess.state.phase !== 'aim') return;
 		const me = sess.state.players[sess.state.currentPlayer];
-		if (me.id === 'ai') return;
+		if (isOpponent(me.id)) return;
 		submitStrike({ type: 'strike', angle: G.aim.angle, power: G.aim.power, by: me.id });
 	}
 
@@ -176,8 +192,10 @@
 			refreshHud();
 			return;
 		}
+		// Only the strike itself is acknowledged immediately; bounce/splash are fired by the
+		// renderer at their simulated time (playing them here too would double the sound).
 		for (const e of res.events) {
-			if (e.type === 'strike' || e.type === 'splash' || e.type === 'bounce') AUDIO.event(e);
+			if (e.type === 'strike') AUDIO.event(e);
 		}
 		RENDER.playTrace(res.trace, res.events, 1, () => {
 			// playback finished: settle every object into the exact deterministic end state
@@ -191,14 +209,14 @@
 				if (e.type === 'session-complete') completed = true;
 			}
 			checkLearn(res.events);
-			if (completed) { finishRound(); return; }
-			transition('active', 'resolution-complete');
+			if (completed || sess.state.terminal) { finishRound(); return; }
+			if (G.machine !== 'paused') transition('active', 'resolution-complete');
 			afterTurn();
 		});
 	}
 
 	function holeSummaryText(e) {
-		const parts = Object.keys(e.totals).map(id => (id === 'ai' ? 'AI' : 'You') + ' ' + (e.totals[id].strokes + e.totals[id].penalties));
+		const parts = Object.keys(e.totals).map(id => playerLabel(id) + ' ' + (e.totals[id].strokes + e.totals[id].penalties));
 		return 'Hole finished. ' + parts.join(', ') + '.';
 	}
 
@@ -212,19 +230,23 @@
 
 	function afterTurn() {
 		const sess = G.session;
+		if (!sess || G.machine === 'paused') return;
 		const st = sess.state;
 		if (st.terminal) { finishRound(); return; }
 		const me = st.players[st.currentPlayer];
-		if (me.id === 'ai') {
+		if (isOpponent(me.id)) {
 			refreshHud();
-			setTimeout(() => {
-				if (!G.session || G.machine === 'paused') return;
-				const cmd = SESSION.aiStrike(sess, 'ai');
-				if (cmd) {
-					transition('resolving', 'ai-strike');
-					const res = SESSION.applyCommand(sess, cmd);
-					handleResult(res);
-				}
+			RENDER.setAim(null);
+			clearTimeout(G.opponentTimer);
+			G.opponentTimer = setTimeout(() => {
+				if (!G.session || G.session !== sess || G.machine === 'paused') return;
+				const cur = sess.state.players[sess.state.currentPlayer];
+				if (!cur || !isOpponent(cur.id) || sess.state.phase !== 'aim') return;
+				const cmd = SESSION.aiStrike(sess, cur.id);
+				if (!cmd) return;
+				transition('resolving', 'ai-strike');
+				if (G.hosted) { hostedSubmit(cmd); return; }
+				handleResult(SESSION.applyCommand(sess, cmd));
 			}, G.settings.graphics.reducedMotion ? 150 : 800);
 			return;
 		}
@@ -236,15 +258,29 @@
 
 	function finishRound() {
 		const sess = G.session;
+		if (!sess || G.machine === 'results') return; // idempotent: only one results screen per round
 		transition('results', 'round-complete');
 		AUDIO.event({ type: 'session-complete' });
+		clearTimeout(G.opponentTimer);
+		if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
 		PLATFORM.stopActivity();
 		PLATFORM.track('round-end', { mode: G.mode });
+		// Hosted rounds terminate inside the server's state, so the session never builds
+		// its own result envelope; derive one from the authoritative terminal block.
+		if (!sess.result && sess.state.terminal) {
+			sess.result = {
+				reason: sess.state.terminal.reason,
+				results: sess.state.terminal.results.map(x => Object.assign({ holes: 1 }, x)),
+				challenge: sess.challenge ? { id: sess.challenge.id, status: sess.challengeStatus || 'passed' } : null,
+				perHole: sess.holes.map(h => ({ id: h.id, par: h.par })),
+			};
+		}
+		if (!sess.result || !sess.result.results.length) { UI.toast('Round ended unexpectedly'); leave(); return; }
 		const unlocked = awardProgress(sess);
 		const r = sess.result;
-		const mine = r.results.find(x => x.id !== 'ai');
+		const mine = r.results.find(x => x.id === localPlayerId()) || r.results[0];
 		const parTotal = sess.holes.reduce((a, h) => a + h.par, 0);
-		const headline = G.mode === 'challenge'
+		const headline = G.mode === 'challenge' && r.challenge
 			? (r.challenge.status === 'passed' ? 'Challenge passed' : 'Challenge not met')
 			: (mine.total <= parTotal ? 'Under or at par — nicely played' : 'Round complete');
 		UI.renderResults(r, {
@@ -260,12 +296,12 @@
 	function awardProgress(sess) {
 		const p = G.progress;
 		const unlocked = [];
-		const mine = sess.result.results.find(r => r.id !== 'ai');
-		const holedAny = sess.state.holeResults.some(r => r.id !== 'ai' && r.strokes > 0);
+		const mine = sess.result.results.find(r => r.id === localPlayerId()) || sess.result.results[0];
+		const holedAny = sess.state.players.some(r => !isOpponent(r.id) && r.holed);
 		if (holedAny && PLATFORM.unlockAchievement(p, 'first_hole')) unlocked.push('First Cup');
-		p.mastery.holesCompleted += mine.holes;
+		p.mastery.holesCompleted += mine.holes || 0;
 		if (p.mastery.holesCompleted >= 100 && PLATFORM.unlockAchievement(p, 'century')) unlocked.push('Century of Putts');
-		if (mine.penalties === 0) p.mastery.noPenaltyHoles += mine.holes;
+		if (mine.penalties === 0) p.mastery.noPenaltyHoles += mine.holes || 0;
 		if (G.mode === 'journey') {
 			const stage = sess.holes[0].id;
 			const idx = CONTENT.JOURNEY.indexOf(sess.holes[0]);
@@ -274,7 +310,7 @@
 			const done = Object.keys(p.journey.stars).length;
 			if (done >= 22 && PLATFORM.unlockAchievement(p, 'journey_half')) unlocked.push('Half the Garden');
 		}
-		if (G.mode === 'learn' && G.learn) {
+		if (G.mode === 'learn' && G.learn && holedAny) {
 			G.settings.tutorial.completed[G.learn.tutorialId] = true;
 			const allDone = CONTENT.TUTORIALS.every(t => G.settings.tutorial.completed[t.id]);
 			if (allDone && PLATFORM.unlockAchievement(p, 'mechanic_master')) unlocked.push('Course Mechanic');
@@ -442,7 +478,9 @@
 			body.appendChild(b);
 			return;
 		}
-		G.hosted = { sessionId: res.data.id, playerId: res.data.you, course: res.data.course };
+		// Seat ids come from the server: the local session must use them so turn order,
+		// command `by` fields and the score rails all line up with the authoritative state.
+		G.hosted = { sessionId: res.data.id, playerId: res.data.you, course: res.data.course, players: res.data.players };
 		body.innerHTML = '<p>Match <code>' + res.data.id + '</code> ready. You are <b>' + res.data.you + '</b>. ' +
 			'Strokes alternate; the server is authoritative and your result is submitted automatically.</p>' +
 			'<div id="lobby-status"><p>Waiting for your turn…</p></div>';
@@ -457,7 +495,7 @@
 		const h = G.hosted;
 		if (!h) return;
 		h.course = h.course && h.course.course ? h.course.course : h.course;
-		startRound('hosted', [h.course], { players: h.players || ['you', 'ai'], seed: h.sessionId });
+		startRound('hosted', [h.course], { players: (h.players && h.players.length) ? h.players : [h.playerId], seed: h.sessionId });
 		hostedSync();
 	}
 
@@ -465,10 +503,12 @@
 		const h = G.hosted;
 		if (!h) return;
 		const res = await PLATFORM.api('/api/v1/sessions/' + h.sessionId);
+		if (G.hosted !== h) return; // left the match while the poll was in flight
 		if (!res.ok) { UI.toast('Connection issue — retrying'); scheduleHostedPoll(); return; }
 		const s = res.data;
 		h.players = s.players;
-		if (G.session && s.state && s.state.tick > G.session.state.tick) {
+		// Never swap state out from under an in-flight roll; adopt only between strokes.
+		if (G.session && s.state && s.state.tick > G.session.state.tick && G.machine === 'active') {
 			// reconnect path: REST session detail is the source of truth
 			G.session.state = s.state;
 			RENDER.currentState = s.state;
@@ -486,9 +526,13 @@
 		h.poll = setTimeout(hostedSync, 2000);
 	}
 
+	let hostedCmdSeq = 0;
 	async function hostedSubmit(cmd) {
 		const h = G.hosted;
-		const res = await PLATFORM.api('/api/v1/sessions/' + h.sessionId + '/commands', { method: 'POST', body: cmd });
+		// stable command id so a retried POST is replayed idempotently by the server
+		const full = Object.assign({ id: h.sessionId + '-' + (++hostedCmdSeq) }, cmd);
+		const res = await PLATFORM.api('/api/v1/sessions/' + h.sessionId + '/commands', { method: 'POST', body: full });
+		if (G.hosted !== h || !G.session) return; // a response must belong to this match
 		if (!res.ok) {
 			AUDIO.event({ type: 'invalid', reason: res.error });
 			UI.announce('Rejected: ' + res.error, true);
@@ -500,33 +544,45 @@
 		G.session.state = res.data.state;
 		transition('resolving', 'strike');
 		RENDER.setAim(null);
+		// handleResult finishes the round itself once playback has settled; finishing here
+		// as well would open the results screen over a still-rolling ball.
 		handleResult({ events: res.data.events, error: null, trace: res.data.trace });
-		if (res.data.state.terminal) finishRound();
 	}
 
 	// ---------- pause / resume / leave ----------
 
 	function pause() {
-		if (!G.session || G.session.finished) return;
+		if (!G.session || G.machine === 'results') return;
+		if (UI.anyOverlayOpen()) return;
 		transition('paused', 'user-pause');
+		RENDER.setPaused(true);
 		UI.openOverlay('overlay-pause');
 	}
 
 	function resume() {
 		UI.closeOverlay('overlay-pause');
-		transition('active', 'user-resume');
-		refreshHud();
+		RENDER.setPaused(false);
+		transition(RENDER.isPlaying() ? 'resolving' : 'active', 'user-resume');
+		if (RENDER.isPlaying()) refreshHud(); else afterTurn();
 	}
 
 	function leave() {
 		UI.closeOverlay('overlay-pause');
 		UI.closeOverlay('overlay-results');
 		if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
+		clearTimeout(G.countdownTimer);
+		clearTimeout(G.opponentTimer);
 		G.hosted = null;
 		G.session = null;
+		RENDER.setPaused(false);
 		G.learn = null;
 		AUDIO.stopAmbience();
 		PLATFORM.stopActivity();
+		// the HUD belongs to a round: reset it so no stale score or live Pause button remains
+		RENDER.setAim(null);
+		UI.setHud({ objective: 'Pocket Greens', hole: '–', par: '–', strokes: 0, total: 0, playing: false });
+		UI.setControls({ canStrike: false, canUndo: false, canHint: false });
+		UI.setRails('Choose a mode to begin.', '');
 		transition('title', 'user-leave');
 		updateTitle();
 		UI.showScreen('screen-title');
@@ -553,12 +609,14 @@
 		canvas.addEventListener('pointermove', (e) => {
 			if (!drag || drag.id !== e.pointerId || !canAim()) return;
 			const p = canvasPoint(e);
-			const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
-			const dist = Math.hypot(dx * canvas.clientWidth, dy * canvas.clientHeight);
+			const px = (p.x - drag.start.x) * canvas.clientWidth, py = (p.y - drag.start.y) * canvas.clientHeight;
+			const dist = Math.hypot(px, py);
 			if (dist < 12 && !drag.moved) return; // tap/drag threshold
 			drag.moved = true;
-			// slingshot: pull back to aim the opposite way; distance sets power
-			G.aim.angle = Math.atan2(-dy, -dx);
+			// slingshot: pull back to aim the opposite way; distance sets power.
+			// The delta is mapped through the camera so the drag matches what is on screen.
+			const d = RENDER.courseDelta(px, py);
+			G.aim.angle = Math.atan2(-d.y, -d.x);
 			G.aim.power = Math.max(1, Math.min(100, (dist / Math.min(canvas.clientWidth, canvas.clientHeight)) * 160));
 			UI.setPower(Math.round(G.aim.power));
 			updateAimView();
@@ -579,14 +637,22 @@
 			if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range') return;
 			const k = e.key;
 			if (k === 'Escape') {
-				if (UI.anyOverlayOpen()) { emitCloseTop(); } else if (G.machine === 'active') pause();
+				// Esc during a pull-back abandons the stroke (as Help documents) before it pauses
+				if (drag) { drag = null; defaultAim(); refreshHud(); }
+				else if (UI.anyOverlayOpen()) { emitCloseTop(); }
+				else if (G.machine === 'active') pause();
 				e.preventDefault();
+				return;
+			}
+			if (k === 'p' || k === 'P') {
+				// P toggles the pause overlay from either side; other overlays keep priority
+				if (G.machine === 'paused') { resume(); e.preventDefault(); return; }
+				if (!UI.anyOverlayOpen() && G.session && !G.session.finished) { pause(); e.preventDefault(); }
 				return;
 			}
 			if (UI.anyOverlayOpen()) return;
 			if (!canAim()) {
 				if (k === 'f' || k === 'F') RENDER.skipTrace(); // fast-forward to the exact end state
-				if ((k === 'p' || k === 'P') && G.session && !G.session.finished) { G.machine === 'paused' ? resume() : pause(); }
 				return;
 			}
 			switch (k) {
@@ -597,8 +663,7 @@
 				case ' ': case 'Enter': strike(); e.preventDefault(); return;
 				case 'u': case 'U': doUndo(); return;
 				case 'h': case 'H': doHint(); return;
-				case 'c': case 'C': RENDER.loadCourse(currentCourse(), CONTENT.getTheme(currentCourse().theme)); RENDER.applySnapshot(G.session.state); return;
-				case 'p': case 'P': pause(); return;
+				case 'c': case 'C': RENDER.loadCourse(currentCourse(), CONTENT.getTheme(currentCourse().theme)); RENDER.applySnapshot(G.session.state); updateAimView(); return;
 				default: return;
 			}
 			AUDIO.event({ type: 'aim-tick' });
@@ -641,7 +706,7 @@
 		const sess = G.session;
 		if (!sess || G.machine !== 'active') return false;
 		const st = sess.state;
-		return st.phase === 'aim' && !st.terminal && st.players[st.currentPlayer].id !== 'ai';
+		return st.phase === 'aim' && !st.terminal && !isOpponent(st.players[st.currentPlayer].id);
 	}
 
 	function doUndo() {
@@ -719,9 +784,16 @@
 		UI.on('resume', resume);
 		UI.on('leave', leave);
 		UI.on('restart-hole', () => {
+			if (!G.session) return;
 			UI.closeOverlay('overlay-pause');
+			if (G.hosted) { UI.toast('Hosted matches cannot be restarted'); resume(); return; }
 			const c = currentCourse();
-			startRound(G.mode, G.session.holes.slice(0, G.session.holeIndex).concat([c]), { players: G.session.state.players.map(p => p.id), seed: G.session.seed });
+			// the challenge must be carried over, or the retried round scores as an ordinary one
+			startRound(G.mode, [c], {
+				players: G.session.state.players.map(p => p.id),
+				seed: G.session.seed,
+				challenge: G.session.challenge,
+			});
 		});
 		UI.on('settings', () => { UI.renderSettings(); UI.openOverlay('overlay-settings'); });
 		UI.on('close-settings', () => UI.closeOverlay('overlay-settings'));
@@ -734,11 +806,13 @@
 		UI.on('settings-changed', () => { applySettings(); PLATFORM.track('settings-change', { category: 'settings' }); });
 		UI.on('results-next', () => { const n = nextAction(); UI.closeOverlay('overlay-results'); if (n.run) n.run(); });
 		UI.on('results-retry', () => {
+			if (!G.session) return;
 			UI.closeOverlay('overlay-results');
+			if (G.hosted) { leave(); return; }
 			PLATFORM.track('retry', { mode: G.mode });
 			const holes = G.session.holes;
 			const ch = G.session.challenge;
-			startRound(G.mode, holes, { players: ['you'], challenge: ch, seed: G.session.seed });
+			startRound(G.mode, holes, { players: G.session.state.players.map(p => p.id), challenge: ch, seed: G.session.seed });
 		});
 		UI.on('results-menu', leave);
 	}

@@ -40,6 +40,12 @@ function persist() {
 	}, 250);
 }
 
+// Static-file containment. The comparison must include the separator: a bare prefix
+// test also accepts sibling directories such as "<ROOT>-backup" reached through "../".
+function isInsideRoot(p) {
+	return p === ROOT || p.startsWith(ROOT + path.sep);
+}
+
 function send(res, code, body, headers) {
 	const isObj = body !== null && typeof body === 'object';
 	res.writeHead(code, Object.assign({ 'Content-Type': isObj ? 'application/json' : 'text/plain; charset=utf-8' }, headers || {}));
@@ -71,7 +77,17 @@ function resolveCourse(body) {
 	return known || CONTENT.dailyCourse();
 }
 
+// Sessions live in memory only; drop the ones past their deadline so a long-running
+// server does not accumulate abandoned matches.
+function pruneSessions() {
+	const now = Date.now();
+	for (const id of Object.keys(db.sessions)) {
+		if (db.sessions[id].deadline < now) delete db.sessions[id];
+	}
+}
+
 function createSession(body) {
+	pruneSessions();
 	const course = resolveCourse(body);
 	const count = body.players === 2 ? 2 : 1;
 	const ids = count === 2 ? ['host', 'guest'] : ['host'];
@@ -200,7 +216,7 @@ const server = http.createServer(async (req, res) => {
 	if (req.method !== 'GET') return send(res, 405, { error: 'method-not-allowed' });
 	const rel = u === '/' ? 'index.html' : u.replace(/^\/+/, '');
 	const p = path.normalize(path.join(ROOT, rel));
-	if (!p.startsWith(ROOT)) return send(res, 403, { error: 'forbidden' });
+	if (!isInsideRoot(p) || path.relative(ROOT, p).split(path.sep).some(part => part.startsWith('.'))) return send(res, 403, { error: 'forbidden' });
 	let st;
 	try { st = fs.statSync(p); if (!st.isFile()) throw new Error('nf'); } catch (e) { return send(res, 404, { error: 'not-found' }); }
 	const type = MIME[path.extname(p).toLowerCase()] || 'application/octet-stream';
@@ -209,6 +225,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 module.exports = server;
+module.exports.isInsideRoot = isInsideRoot;
+module.exports.ROOT = ROOT;
 
 if (require.main === module) {
 	server.listen(PORT, () => { console.log('Pocket Greens server on http://localhost:' + PORT); });
