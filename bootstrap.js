@@ -302,6 +302,9 @@
 		p.mastery.holesCompleted += mine.holes || 0;
 		if (p.mastery.holesCompleted >= 100 && PLATFORM.unlockAchievement(p, 'century')) unlocked.push('Century of Putts');
 		if (mine.penalties === 0) p.mastery.noPenaltyHoles += mine.holes || 0;
+		const streak = PLATFORM.recordHoleStreak(p, mine.holes || 0, mine.total,
+			sess.holes.reduce((a, h) => a + h.par, 0));
+		if (streak) unlocked.push(streak);
 		if (G.mode === 'journey') {
 			const stage = sess.holes[0].id;
 			const idx = CONTENT.JOURNEY.indexOf(sess.holes[0]);
@@ -837,6 +840,7 @@
 		}
 		RENDER.onFatal = () => UI.openOverlay('overlay-compat');
 		RENDER.onEvent = (e) => AUDIO.event(e);
+		AUDIO.onCaption(UI.caption); // settings toggle "Captions for sounds" feeds the caption chip
 
 		applySettings();
 		bindInput();

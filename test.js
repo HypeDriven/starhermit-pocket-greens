@@ -213,6 +213,28 @@ test('five themes exist with complete palettes', () => {
 	}
 });
 
+// ---------- platform: achievements ----------
+
+test('streak achievement: three under-par holes in a row, reset on par, idempotent', () => {
+	const PLATFORM = require('./platform');
+	const p = JSON.parse(JSON.stringify(PLATFORM.DEFAULT_PROGRESS));
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // streak 1
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 2, 2), null); // par breaks the streak
+	assert.strictEqual(p.mastery.underParStreak, 0);
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // streak 1
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 3), null); // streak 2
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), 'On a Roll'); // streak 3
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // idempotent
+	assert.ok(p.achievements.streak_3);
+	// a capped hole (over par) resets the streak again
+	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 7, 2), null);
+	assert.strictEqual(p.mastery.underParStreak, 0);
+	// rounds without a completed hole leave the streak untouched
+	p.mastery.underParStreak = 2;
+	PLATFORM.recordHoleStreak(p, 0, 0, 2);
+	assert.strictEqual(p.mastery.underParStreak, 2);
+});
+
 // ---------- golden sessions ----------
 
 test('golden: interrupted and resumed session preserves totals', () => {

@@ -5,7 +5,8 @@
  *   title → menu → Practice → hole j01 → set power on the real power slider
  *   → press Strike → the ball rolls and holes out → round completes → the
  *   Results overlay shows the score breakdown. Also exercises Pause/Resume,
- *   Settings open/close, Help open/close and the Hint button through the
+ *   Settings open/close (enabling sound captions, which the stroke must then
+ *   surface as an on-screen caption chip), Help open/close and the Hint button through the
  *   visible on-screen controls. A second, shorter pass drives the same
  *   practice flow with touch input (touchscreen.tap) on a mobile viewport.
  *
@@ -199,6 +200,8 @@ async function runPass(browser, name, ctxOpts, { full, touch }) {
       await page.waitForSelector('#overlay-settings.open', { timeout: 5000 });
       ok(`${name}: settings dialog opened`);
       await page.screenshot({ path: SHOT('settings', name) });
+      // enable sound captions so the stroke acknowledgment chip is verified end-to-end below
+      await page.locator('#settings-body [data-set="audio.captions"]').check();
       await page.click('#settings-close');
       await page.waitForFunction(() => !document.getElementById('overlay-settings').classList.contains('open'));
 
@@ -228,6 +231,9 @@ async function runPass(browser, name, ctxOpts, { full, touch }) {
 
       // strike through the real on-screen button
       await page.click('#btn-strike');
+      // the strike is a captioned sound: the chip must appear while the ball rolls
+      await page.waitForSelector('#captions.show', { timeout: 3000 });
+      ok(`${name}: stroke caption shown (sound captions wired)`);
       await page.click('#btn-pause');
       await page.waitForSelector('#overlay-pause.open');
       await page.waitForTimeout(2500);

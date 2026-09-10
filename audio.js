@@ -187,9 +187,10 @@ function startAmbience(kind) {
 	g.connect(buses.ambience);
 	const osc = ctx.createOscillator();
 	osc.type = 'sine';
-	osc.frequency.value = kind === 'dusk' ? 110 : kind === 'frost' ? 196 : 147;
+	// kinds are the theme ambience names from content.js (birds/wind/water/crickets/still)
+	osc.frequency.value = kind === 'crickets' ? 110 : kind === 'still' ? 196 : 147;
 	const lfo = ctx.createOscillator();
-	lfo.frequency.value = kind === 'water' || kind === 'pond' ? 0.4 : 0.18;
+	lfo.frequency.value = kind === 'water' ? 0.4 : 0.18;
 	const lfoG = ctx.createGain();
 	lfoG.gain.value = 0.025;
 	lfo.connect(lfoG).connect(g.gain);

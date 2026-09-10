@@ -112,7 +112,7 @@ const DEFAULT_PROGRESS = {
 	version: 2,
 	journey: { unlocked: 1, stars: {} },     // stage id -> best strokes
 	achievements: {},                        // key -> timestamp
-	mastery: { holesCompleted: 0, noPenaltyHoles: 0, bestDaily: null },
+	mastery: { holesCompleted: 0, noPenaltyHoles: 0, bestDaily: null, underParStreak: 0 },
 };
 
 function loadProgress() {
@@ -145,6 +145,17 @@ function unlockAchievement(progress, key) {
 	if (!ACHIEVEMENTS.find(a => a.key === key)) return false;
 	progress.achievements[key] = now();
 	return true;
+}
+
+// Sustained streak: holes holed out under par, counted consecutively across rounds.
+// A hole at par or worse (including capped holes) resets the streak; rounds that end
+// without a completed hole leave it unchanged. Returns the achievement name when the
+// three-in-a-row milestone is newly reached, otherwise null.
+function recordHoleStreak(progress, holes, total, parTotal) {
+	if (holes > 0 && total < parTotal) progress.mastery.underParStreak = (progress.mastery.underParStreak || 0) + holes;
+	else if (holes > 0) progress.mastery.underParStreak = 0;
+	if ((progress.mastery.underParStreak || 0) >= 3 && unlockAchievement(progress, 'streak_3')) return 'On a Roll';
+	return null;
 }
 
 // ---------- presence & activity ----------
@@ -190,7 +201,7 @@ function setConsent(c) { state.consent = !!c; }
 const platformApi = {
 	syncTime, now, api, state,
 	loadSettings, saveSettings, loadProgress, saveProgress,
-	ACHIEVEMENTS, unlockAchievement, FUNNEL_EVENTS, track, flushTelemetry, setConsent,
+	ACHIEVEMENTS, unlockAchievement, recordHoleStreak, FUNNEL_EVENTS, track, flushTelemetry, setConsent,
 	startActivity, stopActivity, DEFAULT_SETTINGS, DEFAULT_PROGRESS,
 };
 
