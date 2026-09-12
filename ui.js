@@ -131,6 +131,18 @@
 	}
 	function getPower() { return Number($('power').value); }
 
+	// account + cloud-sync line (hosted mode only; both stay empty otherwise)
+	function setAccount(text) {
+		const el = $('title-account');
+		if (!el) return;
+		el.textContent = text || '';
+		el.style.display = text ? '' : 'none';
+	}
+	function setSync(text) {
+		const el = $('sync-status');
+		if (el) el.textContent = text || '';
+	}
+
 	function setControls(o) {
 		$('btn-strike').disabled = !o.canStrike;
 		$('btn-undo').disabled = !o.canUndo;
@@ -305,6 +317,7 @@
 	PG.ui = {
 		init, on, showScreen, openOverlay, closeOverlay, anyOverlayOpen, topOverlay,
 		toast, announce, caption, setHud, setRails, setPower, getPower, setControls,
+		setAccount, setSync, escapeHtml,
 		renderSettings, renderSetup, renderResults, applySettingsToDom,
 		get settings() { return ui.settings; },
 		set settings(v) { ui.settings = v; },

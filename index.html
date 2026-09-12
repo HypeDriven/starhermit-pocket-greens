@@ -133,6 +133,7 @@ p { margin: 0.25rem 0; max-width: 70ch; }
     <span class="stat">Par <b id="stat-par">–</b></span>
     <span class="stat">Strokes <b id="stat-strokes">0</b></span>
     <span class="stat">Total <b id="stat-total">0</b></span>
+    <span class="stat" id="sync-status" title="Cloud save status"></span>
     <span class="spacer"></span>
     <button id="btn-pause" aria-label="Pause game" disabled>⏸ Pause</button>
   </header>
@@ -184,6 +185,7 @@ p { margin: 0.25rem 0; max-width: 70ch; }
         <button id="m-hosted">Hosted Play<small>Private match against a friend or AI</small></button>
       </nav>
       <p class="stat" id="title-progress"></p>
+      <p class="stat" id="title-account"></p>
     </div>
   </section>
 
@@ -274,6 +276,7 @@ p { margin: 0.25rem 0; max-width: 70ch; }
 <script src="./session.js"></script>
 <script src="./audio.js"></script>
 <script src="./platform.js"></script>
+<script src="./net.js"></script>
 <script src="./render.js"></script>
 <script src="./ui.js"></script>
 <script src="./bootstrap.js"></script>

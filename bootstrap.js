@@ -8,7 +8,7 @@
 (function () {
 	const PG = window.PG;
 	const RULES = PG.rules, CONTENT = PG.content, SESSION = PG.session;
-	const AUDIO = PG.audio, PLATFORM = PG.platform, RENDER = PG.render, UI = PG.ui;
+	const AUDIO = PG.audio, PLATFORM = PG.platform, RENDER = PG.render, UI = PG.ui, NET = PG.net;
 
 	const G = {
 		machine: 'boot',
@@ -59,10 +59,25 @@
 	// ---------- player identity ----------
 
 	// The seat this client controls. Solo/practice sessions always seat the human as
-	// 'you'; hosted matches use the server-assigned seat id from the lobby.
+	// 'you'; hosted matches use the platform participant id from the room.
 	function localPlayerId() { return G.hosted ? G.hosted.playerId : 'you'; }
 	function isOpponent(id) { return id !== localPlayerId(); }
-	function playerLabel(id) { return isOpponent(id) ? (G.hosted ? id : 'AI') : 'You'; }
+
+	// Hosted names come from the account profile; resolve asynchronously and refresh.
+	const nickCache = {};
+	function nickFor(id) { return nickCache[id] || 'Player ' + String(id).slice(0, 8); }
+	function primeNick(id) {
+		if (!PLATFORM.state.hosted || !id || nickCache[id]) return;
+		PLATFORM.nicknameFor(id).then(name => {
+			nickCache[id] = name;
+			refreshHud();
+			renderRoomsLobby(G.lobbyRoster || []);
+		}).catch(() => {});
+	}
+	function playerLabel(id) {
+		if (isOpponent(id)) return (G.hosted && G.hosted.rooms) ? nickFor(id) : (G.hosted ? id : 'AI');
+		return 'You';
+	}
 
 	// ---------- HUD refresh ----------
 
@@ -176,6 +191,7 @@
 
 	function submitStrike(cmd) {
 		const sess = G.session;
+		if (G.hosted && G.hosted.rooms) { roomsSubmit(cmd); return; }
 		if (G.hosted) { hostedSubmit(cmd); return; }
 		transition('resolving', 'strike');
 		RENDER.setAim(null);
@@ -237,6 +253,9 @@
 		if (isOpponent(me.id)) {
 			refreshHud();
 			RENDER.setAim(null);
+			// hosted rooms: a human opponent — the host broadcasts their move; wait for it.
+			// local practice: the deterministic AI takes the other side after a short beat.
+			if (G.hosted && G.hosted.rooms) return;
 			clearTimeout(G.opponentTimer);
 			G.opponentTimer = setTimeout(() => {
 				if (!G.session || G.session !== sess || G.machine === 'paused') return;
@@ -276,6 +295,10 @@
 			};
 		}
 		if (!sess.result || !sess.result.results.length) { UI.toast('Round ended unexpectedly'); leave(); return; }
+		if (G.hosted && G.hosted.rooms && G.hosted.isHost) {
+			// the host reports the authoritative outcome; guests see the same terminal state
+			G.hosted.client.rest(sess.result).catch(() => {});
+		}
 		const unlocked = awardProgress(sess);
 		const r = sess.result;
 		const mine = r.results.find(x => x.id === localPlayerId()) || r.results[0];
@@ -328,6 +351,9 @@
 	}
 
 	async function submitDailyScore(mine) {
+		// Platform leaderboards are script-owned: clients never submit scores hosted.
+		// The dev server accepts submissions for local testing only.
+		if (PLATFORM.state.hosted) return;
 		// Leaderboard submission includes ruleset, content version, seed, assists, duration.
 		const res = await PLATFORM.api('/api/v1/leaderboard', {
 			method: 'POST',
@@ -418,8 +444,11 @@
 		} else if (mode === 'daily') {
 			UI.renderSetup({
 				title: 'Daily Challenge', desc: 'One shared seed and ruleset per UTC day, synchronized to platform time. Everyone plays the same green.',
-				duration: '~2 minutes', players: '1', assists: 'No undo', ranked: true,
-				extra: 'Seed: ' + CONTENT.dailySeed() + (PLATFORM.state.timeSynced ? ' (server time)' : ' (local time — offline)'),
+				duration: '~2 minutes', players: '1',
+				assists: PLATFORM.state.hosted ? 'No undo • best recorded to your account' : 'No undo',
+				ranked: !PLATFORM.state.hosted,
+				extra: 'Seed: ' + CONTENT.dailySeed() + (PLATFORM.state.timeSynced ? ' (server time)' : ' (local clock)') +
+					(PLATFORM.state.hosted ? ' • Platform boards are read-only' : ''),
 			});
 		} else if (mode === 'practice') {
 			const grid = CONTENT.AUTHORED.map((c, i) =>
@@ -462,7 +491,258 @@
 
 	// ---------- hosted play ----------
 
-	async function openLobby() {
+	// Two hosted paths, chosen by environment: with a platform launch token the game
+	// uses StarHermit realtime rooms (host-routed over the realtime WebSocket); without
+	// one it uses the bundled dev server's REST sessions (local play/testing only).
+	function openLobby() {
+		if (PLATFORM.state.hosted && NET.supported()) { openRoomsLobby(); return; }
+		openDevLobby();
+	}
+
+	function addPracticeFallback(body) {
+		if (body.querySelector('button')) return;
+		const b = document.createElement('button');
+		b.className = 'primary';
+		b.textContent = 'Practice vs AI';
+		b.addEventListener('click', () => startRound('practice', [CONTENT.AUTHORED[0]], { players: ['you', 'ai'] }));
+		body.appendChild(b);
+	}
+
+	// --- realtime rooms (hosted) ---
+
+	async function openRoomsLobby() {
+		transition('mode-select', 'menu-hosted');
+		UI.showScreen('screen-lobby');
+		const body = document.getElementById('lobby-body');
+		body.innerHTML = '<p>Connecting…</p>';
+		const slug = PLATFORM.state.slug;
+		let joined = await NET.quickJoin(PLATFORM, slug);
+		let isHost = false;
+		if (joined && !joined.ok) {
+			body.innerHTML = '<p>Hosted play is unavailable right now (' + UI.escapeHtml(joined.error || 'error') + ').</p>' +
+				'<p>Practice against the deterministic AI instead — it is always available.</p>';
+			addPracticeFallback(body);
+			return;
+		}
+		if (!joined) {
+			// no open table: host one and wait for an opponent
+			const made = await NET.createRoom(PLATFORM, {
+				slug,
+				metadata: { courseId: CONTENT.dailyCourse().id, seed: CONTENT.dailySeed() },
+			});
+			if (!made.ok) {
+				body.innerHTML = '<p>Could not create a room (' + UI.escapeHtml(made.error || 'error') + ').</p>';
+				addPracticeFallback(body);
+				return;
+			}
+			joined = made;
+			isHost = true;
+		}
+		const client = new NET.RoomClient(PLATFORM, joined.roomId, {
+			onRoster: (ids) => renderRoomsLobby(ids),
+			onMessage: (sender, msg) => roomsOnMessage(sender, msg),
+			onText: (msg) => {
+				// learn the host's participant id from any push that carries it
+				const h = G.hosted;
+				if (h && !h.hostId && msg && msg.hostId) h.hostId = String(msg.hostId);
+			},
+			onClose: () => roomsOnClose(),
+		});
+		G.hosted = {
+			rooms: true, client, roomId: joined.roomId, hostId: joined.hostId || null,
+			myId: joined.selfId || null, playerId: joined.selfId || null, isHost,
+			course: null, players: null, cmdSeq: 0, applied: {}, pending: {}, started: false,
+		};
+		client.connect();
+		body.innerHTML = '<p>Room <code>' + UI.escapeHtml(joined.roomId) + '</code> — connecting…</p>';
+	}
+
+	function renderRoomsLobby(ids) {
+		const h = G.hosted;
+		if (!h || !h.rooms || h.started) return;
+		G.lobbyRoster = ids;
+		if (!h.myId && ids.length) {
+			// fall back to roster inference when the server did not name "you"
+			h.myId = h.hostId
+				? (ids.indexOf(h.hostId) >= 0 ? ids.find(x => x !== h.hostId) || h.hostId : ids[0])
+				: (h.isHost ? ids[0] : null);
+		}
+		if (h.isHost) h.hostId = h.hostId || h.myId || ids[0];
+		if (!h.playerId) h.playerId = h.myId;
+		ids.slice(0, 2).forEach(primeNick);
+		const names = ids.slice(0, 2).map(id =>
+			'<li>' + UI.escapeHtml(nickFor(id)) + (id === h.myId ? ' (you)' : '') + '</li>').join('');
+		let html = '<p>Room <code>' + UI.escapeHtml(h.roomId) + '</code></p><ul>' + names + '</ul>';
+		if (ids.length < 2) html += '<p>Waiting for an opponent to join this room…</p>';
+		else if (h.isHost) html += '<p>Opponent found — start when ready.</p>';
+		else html += '<p>Opponent found — waiting for the host to start.</p>';
+		const body = document.getElementById('lobby-body');
+		body.innerHTML = html;
+		if (ids.length >= 2 && h.isHost) {
+			const b = document.createElement('button');
+			b.className = 'primary';
+			b.textContent = 'Start match';
+			b.addEventListener('click', () => hostStartMatch());
+			body.appendChild(b);
+		}
+		addPracticeFallback(body);
+	}
+
+	function hostStartMatch() {
+		const h = G.hosted;
+		if (!h || !h.isHost || h.started) return;
+		const ids = (G.lobbyRoster || []).slice(0, 2);
+		if (ids.length < 2 || !h.myId) { UI.toast('Still waiting for an opponent'); return; }
+		h.hostId = h.myId;
+		h.players = [h.myId, ids.find(x => x !== h.myId) || ids[1]];
+		h.course = CONTENT.dailyCourse();
+		if (!h.client.send({ k: 'start', course: h.course, players: h.players, seed: CONTENT.dailySeed() })) {
+			UI.toast('Could not reach the room');
+			return;
+		}
+		beginRoomsMatch();
+	}
+
+	function beginRoomsMatch() {
+		const h = G.hosted;
+		if (!h || h.started) return;
+		h.started = true;
+		h.playerId = h.myId;
+		enterHosted();
+	}
+
+	function roomsOnMessage(sender, msg) {
+		const h = G.hosted;
+		if (!h || !h.rooms || !msg || typeof msg !== 'object') return;
+		if (msg.k === 'start') {
+			if (h.isHost) return; // the host already began locally
+			h.course = msg.course;
+			h.players = msg.players || [sender];
+			h.hostId = h.hostId || (msg.players && msg.players[0]) || sender;
+			if (!h.myId) { UI.toast('Could not confirm your seat — please rejoin'); h.client.leave(); return; }
+			beginRoomsMatch();
+			return;
+		}
+		if (msg.k === 'cmd' && h.isHost) { roomsHostCommand(msg); return; }
+		if (msg.k === 'res') { roomsAdoptResult(msg); return; }
+		if (msg.k === 'rej') {
+			if (h.pending && h.pending[msg.id]) {
+				delete h.pending[msg.id];
+				AUDIO.event({ type: 'invalid', reason: msg.error });
+				UI.announce('Rejected: ' + msg.error, true);
+				transition('active', 'server-rejected');
+				refreshHud();
+			}
+			return;
+		}
+	}
+
+	// Host-side authoritative apply: same validation the dev server performs
+	// (membership/turn/legality), idempotent by command id.
+	function roomsHostApply(cmd) {
+		const sess = G.session, h = G.hosted;
+		if (!cmd || typeof cmd !== 'object') return { error: 'malformed-command' };
+		if (cmd.id && h.applied[cmd.id]) return { duplicate: true, state: sess.state, events: [], trace: [] };
+		if (!sess || sess.state.terminal) return { error: 'session-expired' };
+		const err = RULES.invalidReason(sess.state, cmd);
+		if (err) return { error: err };
+		const res = RULES.step(sess.state, currentCourse(), cmd);
+		if (res.error) return { error: res.error };
+		if (cmd.id) h.applied[cmd.id] = true;
+		return { state: res.state, events: res.events, trace: res.trace };
+	}
+
+	function roomsHostCommand(msg) {
+		const h = G.hosted;
+		if (!G.session || !msg.cmd) return;
+		const out = roomsHostApply(msg.cmd);
+		if (out.duplicate) { h.client.send({ k: 'res', id: msg.id, by: msg.cmd.by, state: out.state, events: [], trace: [] }); return; }
+		if (out.error) { h.client.send({ k: 'rej', id: msg.id, by: msg.cmd.by, error: out.error }); return; }
+		broadcastRes(msg.id, msg.cmd.by, out);
+		if (isOpponent(msg.cmd.by)) {
+			// the guest's stroke: adopt, animate, and hand the turn back
+			transition('resolving', 'opponent-strike');
+			RENDER.setAim(null);
+			G.session.state = out.state;
+			handleResult({ events: out.events, error: null, trace: out.trace });
+		}
+	}
+
+	function broadcastRes(id, by, out) {
+		const h = G.hosted;
+		const full = { k: 'res', id, by, state: out.state, events: out.events, trace: out.trace };
+		if (h.client.send(full)) return;
+		// over the 8 KB frame cap: drop the roll trace; guests settle instantly instead
+		h.client.send({ k: 'res', id, by, state: out.state, events: out.events, trace: null, lite: true });
+	}
+
+	function roomsSubmit(cmd) {
+		const h = G.hosted;
+		const full = Object.assign({ id: h.roomId + '-' + (++h.cmdSeq) }, cmd);
+		transition('resolving', 'strike');
+		RENDER.setAim(null);
+		if (h.isHost) {
+			const out = roomsHostApply(full);
+			if (out.error) {
+				AUDIO.event({ type: 'invalid', reason: out.error });
+				UI.announce('Rejected: ' + out.error, true);
+				transition('active', 'invalid-command');
+				refreshHud();
+				return;
+			}
+			broadcastRes(full.id, full.by, out);
+			G.session.state = out.state;
+			handleResult({ events: out.events, error: null, trace: out.trace });
+			return;
+		}
+		h.pending[full.id] = full;
+		if (!h.client.send({ k: 'cmd', id: full.id, cmd: full })) {
+			delete h.pending[full.id];
+			UI.toast('Connection issue — move not sent');
+			transition('active', 'move-not-sent');
+			refreshHud();
+		}
+	}
+
+	function roomsAdoptResult(msg) {
+		const h = G.hosted, sess = G.session;
+		if (!sess) return;
+		const mine = h.pending && h.pending[msg.id];
+		if (mine) delete h.pending[msg.id];
+		else {
+			// the opponent's stroke, broadcast by the host
+			if (G.machine === 'resolving') return; // never swap state out from under an in-flight roll
+			transition('resolving', 'opponent-strike');
+			RENDER.setAim(null);
+		}
+		// lite frames (over the 8 KB cap) carry no trace: playback settles instantly
+		sess.state = msg.state;
+		handleResult({ events: msg.events || [], error: null, trace: msg.lite ? [] : (msg.trace || []) });
+	}
+
+	function roomsOnClose() {
+		const h = G.hosted;
+		if (!h || !h.rooms) return;
+		if (!h.started) {
+			G.hosted = null;
+			G.lobbyRoster = null;
+			const body = document.getElementById('lobby-body');
+			if (body && !G.session) {
+				body.innerHTML = '<p>The room connection was lost.</p>';
+				addPracticeFallback(body);
+			}
+			return;
+		}
+		if (G.session && !G.session.state.terminal) {
+			UI.toast('Connection to the match was lost');
+			if (h.pending) Object.keys(h.pending).forEach(k => delete h.pending[k]);
+			if (G.machine === 'resolving') { transition('active', 'connection-lost'); refreshHud(); }
+		}
+	}
+
+	// --- dev-server sessions (local play only; routes 404 on the platform) ---
+
+	async function openDevLobby() {
 		transition('mode-select', 'menu-hosted');
 		UI.showScreen('screen-lobby');
 		const body = document.getElementById('lobby-body');
@@ -474,11 +754,7 @@
 		if (!res.ok) {
 			body.innerHTML = '<p>Hosted play needs the game server. ' + (res.offline ? 'You appear to be offline.' : 'Error: ' + res.error) + '</p>' +
 				'<p>Practice against the deterministic AI instead — it is always available offline.</p>';
-			const b = document.createElement('button');
-			b.className = 'primary';
-			b.textContent = 'Practice vs AI';
-			b.addEventListener('click', () => startRound('practice', [CONTENT.AUTHORED[0]], { players: ['you', 'ai'] }));
-			body.appendChild(b);
+			addPracticeFallback(body);
 			return;
 		}
 		// Seat ids come from the server: the local session must use them so turn order,
@@ -498,8 +774,8 @@
 		const h = G.hosted;
 		if (!h) return;
 		h.course = h.course && h.course.course ? h.course.course : h.course;
-		startRound('hosted', [h.course], { players: (h.players && h.players.length) ? h.players : [h.playerId], seed: h.sessionId });
-		hostedSync();
+		startRound('hosted', [h.course], { players: (h.players && h.players.length) ? h.players : [h.playerId], seed: h.sessionId || h.roomId });
+		if (!h.rooms) hostedSync(); // rooms matches ride the WebSocket instead of polling
 	}
 
 	async function hostedSync() {
@@ -572,10 +848,12 @@
 	function leave() {
 		UI.closeOverlay('overlay-pause');
 		UI.closeOverlay('overlay-results');
+		if (G.hosted && G.hosted.rooms) G.hosted.client.leave();
 		if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
 		clearTimeout(G.countdownTimer);
 		clearTimeout(G.opponentTimer);
 		G.hosted = null;
+		G.lobbyRoster = null;
 		G.session = null;
 		RENDER.setPaused(false);
 		G.learn = null;
@@ -782,7 +1060,14 @@
 		});
 		UI.on('setup-start', setupStart);
 		UI.on('setup-back', () => { UI.showScreen('screen-title'); transition('title', 'setup-back'); });
-		UI.on('lobby-leave', () => { if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll); G.hosted = null; UI.showScreen('screen-title'); transition('title', 'lobby-leave'); });
+		UI.on('lobby-leave', () => {
+			if (G.hosted && G.hosted.rooms) G.hosted.client.leave();
+			if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
+			G.hosted = null;
+			G.lobbyRoster = null;
+			UI.showScreen('screen-title');
+			transition('title', 'lobby-leave');
+		});
 		UI.on('pause', pause);
 		UI.on('resume', resume);
 		UI.on('leave', leave);
@@ -824,6 +1109,10 @@
 
 	async function boot() {
 		transition('boot', 'load');
+		PLATFORM.onIdentity = (id) => {
+			UI.setAccount(id ? 'Playing as ' + id.name + ' — progress syncs to your account' : '');
+		};
+		PLATFORM.onSync = (s) => UI.setSync(syncLabel(s));
 		G.settings = PLATFORM.loadSettings();
 		G.progress = PLATFORM.loadProgress();
 		UI.init(G.settings, G.progress);
@@ -846,10 +1135,29 @@
 		bindInput();
 		bindLifecycle();
 		onResize();
-		await PLATFORM.syncTime(); // countdowns and daily boundaries follow server time when hosted
+		await PLATFORM.syncTime(); // dev server provides /time; hosted play uses the local clock
+		if (PLATFORM.state.hosted) {
+			// remote wins on conflict: adopt the account's valid cloud save over the cache
+			const adopted = await PLATFORM.loadAdoptedProgress(G.progress);
+			if (adopted !== G.progress) {
+				G.progress = adopted;
+				UI.progress = G.progress;
+			}
+			PLATFORM.refreshIdentity();
+		}
 		updateTitle();
 		transition('title', 'boot-complete');
 		UI.showScreen('screen-title');
+	}
+
+	function syncLabel(s) {
+		if (!PLATFORM.state.hosted) return '';
+		return {
+			synced: 'Cloud save: synced',
+			saving: 'Cloud save: saving…',
+			offline: 'Cloud save: offline — will retry',
+			error: 'Cloud save: error — will retry',
+		}[s] || '';
 	}
 
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { whenThree(boot); });
