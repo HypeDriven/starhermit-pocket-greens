@@ -166,9 +166,8 @@
 			settingRow('Voice', '<input type="range" min="0" max="1" step="0.05" value="' + s.audio.voice + '" data-set="audio.voice">') +
 			settingRow('Mute all', '<input type="checkbox" ' + (s.audio.muted ? 'checked' : '') + ' data-set="audio.muted">') +
 			settingRow('Captions for sounds', '<input type="checkbox" ' + (s.audio.captions ? 'checked' : '') + ' data-set="audio.captions">') +
-			'<h3>Graphics</h3>' +
-			settingRow('Quality tier', '<select data-set="graphics.tier">' +
-				['auto', 'low', 'medium', 'high'].map(t => '<option ' + (s.graphics.tier === t ? 'selected' : '') + '>' + t + '</option>').join('') + '</select>') +
+			'<h3 id="gfx-h">' + escapeHtml(gfxStrings().graphics) + '</h3>' +
+			'<div id="gfx-section" role="group" aria-labelledby="gfx-h"></div>' +
 			settingRow('Reduced motion', '<input type="checkbox" ' + (s.graphics.reducedMotion ? 'checked' : '') + ' data-set="graphics.reducedMotion">') +
 			settingRow('High contrast', '<input type="checkbox" ' + (s.graphics.highContrast ? 'checked' : '') + ' data-set="graphics.highContrast">') +
 			settingRow('Larger text', '<input type="checkbox" ' + (s.graphics.largeText ? 'checked' : '') + ' data-set="graphics.largeText">') +
@@ -191,6 +190,7 @@
 				emit('settings-changed', ui.settings);
 			});
 		});
+		renderGraphics();
 		body.querySelector('[data-action="replay-tutorials"]').addEventListener('click', () => {
 			ui.settings.tutorial.completed = {};
 			emit('settings-changed', ui.settings);
@@ -198,10 +198,98 @@
 		});
 	}
 
+	// ---------- graphics (quality presets, per-effect overrides, render scale) ----------
+
+	function gfxStrings() { return PG.gfxI18n.strings(); }
+	function gfxSaved() {
+		const g = ui.settings.graphics;
+		if (!g.gfx || typeof g.gfx !== 'object') g.gfx = { preset: 'auto' };
+		return g.gfx;
+	}
+
+	function gfxRow(id, label, inputHtml) {
+		return '<div class="setting-row"><label for="' + id + '">' + escapeHtml(label) + '</label>' + inputHtml + '</div>';
+	}
+
+	function renderGraphics() {
+		const box = $('gfx-section');
+		if (!box) return;
+		const GFX = PG.gfx, T = gfxStrings();
+		const saved = gfxSaved();
+		const info = PG.render.graphicsInfo(T.sum);
+		const detected = info.detected;
+		const presetName = (p) => T[p] || p;
+		const cur = GFX.PRESETS.includes(saved.preset) ? saved.preset : 'auto';
+		const effective = info.resolved.preset;
+		let html = gfxRow('gfx-preset', T.quality,
+			'<select id="gfx-preset" data-gfx="preset">' +
+			['auto'].concat(GFX.PRESETS).map(p => '<option value="' + p + '"' + (cur === p ? ' selected' : '') + '>' +
+				escapeHtml(p === 'auto' ? T.auto.replace('{tier}', presetName(detected)) : presetName(p)) + '</option>').join('') +
+			'</select>');
+		const pct = Math.round((Number(saved.render_scale) || 1) * 100);
+		html += gfxRow('gfx-scale', T.renderScale,
+			'<span class="scale-wrap"><input type="range" id="gfx-scale" data-gfx="render_scale" min="50" max="200" step="5" value="' + pct + '">' +
+			'<output id="gfx-scale-val" for="gfx-scale">' + pct + '%</output></span>');
+		html += '<div id="gfx-overrides">';
+		for (const cat of Object.keys(GFX.CATEGORIES)) {
+			const own = GFX.presetTier(effective, cat);
+			const val = GFX.CATEGORIES[cat].includes(saved[cat]) ? saved[cat] : 'preset';
+			html += gfxRow('gfx-' + cat, T.cat[cat],
+				'<select id="gfx-' + cat + '" data-gfx="' + cat + '">' +
+				'<option value="preset"' + (val === 'preset' ? ' selected' : '') + '>' + escapeHtml(T.fromPreset.replace('{tier}', T.tier[own] || own)) + '</option>' +
+				GFX.CATEGORIES[cat].map(tier => '<option value="' + tier + '"' + (val === tier ? ' selected' : '') + '>' + escapeHtml(T.tier[tier] || tier) + '</option>').join('') +
+				'</select>');
+		}
+		html += '</div>';
+		html += gfxRow('gfx-adaptive', T.adaptive, '<input type="checkbox" id="gfx-adaptive" data-gfx="adaptive"' + (saved.adaptive !== false ? ' checked' : '') + '>');
+		html += gfxRow('gfx-fps', T.showFps, '<input type="checkbox" id="gfx-fps" data-gfx="show_fps"' + (saved.show_fps ? ' checked' : '') + '>');
+		html += '<p id="gfx-summary" aria-live="polite"></p><p id="gfx-post-note" hidden>' + escapeHtml(T.postUnavailable) + '</p>';
+		box.innerHTML = html;
+
+		box.querySelectorAll('[data-gfx]').forEach(el => {
+			if (el.type === 'range') el.addEventListener('input', () => { $('gfx-scale-val').textContent = el.value + '%'; });
+			el.addEventListener('change', () => {
+				const k = el.dataset.gfx;
+				let next = Object.assign({}, gfxSaved());
+				if (k === 'preset') next = GFX.choosePreset(next, el.value); // a preset clears overrides
+				else if (k === 'render_scale') next.render_scale = Math.min(2, Math.max(0.5, Number(el.value) / 100));
+				else if (k === 'adaptive') next.adaptive = el.checked;
+				else if (k === 'show_fps') next.show_fps = el.checked;
+				else if (el.value === 'preset') delete next[k];
+				else next[k] = el.value;
+				ui.settings.graphics.gfx = next;
+				emit('settings-changed', ui.settings);
+				if (k === 'preset') {
+					renderGraphics();
+					const sel = $('gfx-preset');
+					if (sel) sel.focus();
+				} else updateGraphicsSummary();
+			});
+		});
+		updateGraphicsSummary();
+	}
+
+	// "GPU · cost summary · W×H px", plus the post-processing note when it could not be built
+	function updateGraphicsSummary() {
+		const el = $('gfx-summary');
+		if (!el || !PG.render.ready) return;
+		const T = gfxStrings();
+		const info = PG.render.graphicsInfo(T.sum);
+		let text = (info.gpu || T.unknownGpu) + ' · ' + info.summary;
+		if (info.resolved.showFps && info.fps) text += ' · ' + info.fps + ' fps';
+		if (el.textContent !== text) el.textContent = text;
+		const note = $('gfx-post-note');
+		if (note) note.hidden = !info.postFailed;
+		document.body.dataset.gfxPreset = info.resolved.preset;
+		document.body.dataset.gfxAuto = info.resolved.auto ? '1' : '0';
+	}
+	setInterval(() => { if ($('overlay-settings') && $('overlay-settings').classList.contains('open')) updateGraphicsSummary(); }, 1000);
+
 	function applySettingsToDom() {
 		const s = ui.settings;
 		document.body.classList.toggle('high-contrast', !!s.graphics.highContrast);
 		document.body.classList.toggle('large-text', !!s.graphics.largeText);
+		updateGraphicsSummary();
 	}
 
 	// ---------- help (rule cards generated from current control mappings) ----------
@@ -318,7 +406,7 @@
 		init, on, showScreen, openOverlay, closeOverlay, anyOverlayOpen, topOverlay,
 		toast, announce, caption, setHud, setRails, setPower, getPower, setControls,
 		setAccount, setSync, escapeHtml,
-		renderSettings, renderSetup, renderResults, applySettingsToDom,
+		renderSettings, renderGraphics, updateGraphicsSummary, renderSetup, renderResults, applySettingsToDom,
 		get settings() { return ui.settings; },
 		set settings(v) { ui.settings = v; },
 		get progress() { return ui.progress; },

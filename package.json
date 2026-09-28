@@ -4,7 +4,7 @@
   "description": "Pocket Greens — turn-based precision sport in a whimsical garden (browser game)",
   "main": "server.js",
   "scripts": {
-    "test": "node test.js",
+    "test": "node test.js && node --test tests/gfx.test.js",
     "test:e2e": "node tests/e2e.mjs",
     "start": "node server.js"
   },

@@ -99,11 +99,28 @@ p { margin: 0.25rem 0; max-width: 70ch; }
 #toast.show { display: block; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* ---- graphics settings + frame-rate readout ---- */
+#fps-meter { position: absolute; left: calc(0.5rem + var(--safe-left)); bottom: calc(0.5rem + var(--safe-bottom)); z-index: 7;
+  pointer-events: none; font: 12px/1.2 ui-monospace, monospace; background: rgba(0,0,0,0.55); color: #fff; padding: 0.15rem 0.4rem; border-radius: 6px; }
+#fps-meter[hidden] { display: none; }
+#gfx-section .setting-row { flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+#gfx-section .setting-row label { min-width: 0; }
+#gfx-section .setting-row select { max-width: 100%; margin-left: auto; }
+#gfx-section .scale-wrap { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; flex-shrink: 0; }
+#gfx-section .scale-wrap output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
+#gfx-summary { color: var(--ink-dim); font-size: 0.85em; margin: 0.35rem 0; overflow-wrap: anywhere; }
+#gfx-post-note { color: var(--accent-2); font-size: 0.85em; }
+#gfx-overrides { border-left: 3px solid var(--panel-2); padding-left: 0.6rem; margin: 0.25rem 0; }
+#screen-title { background: color-mix(in srgb, var(--bg) 68%, transparent); }
+body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%, transparent); }
+
 /* ---- responsive ---- */
 @media (max-width: 1023px) {
   .rail { max-width: 13rem; font-size: 0.9rem; }
 }
 @media (max-width: 700px) {
+  #fps-meter { bottom: calc(6.5rem + var(--safe-bottom)); }
+  #gfx-section .setting-row input[type="range"] { width: 6.5rem; }
   /* Two 13rem rails plus a wrapping action tray do not fit a phone: keep the rails at the
      top, each under half the width, so neither overlaps the other nor the stroke controls. */
   .rail { position: absolute; top: calc(0.4rem + var(--safe-top)); bottom: auto;
@@ -266,10 +283,30 @@ p { margin: 0.25rem 0; max-width: 70ch; }
   </div>
 </div>
 
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.min.js?v=production-qa-1",
+  "three/addons/": "./vendor/addons/"
+} }
+</script>
 <script type="module">
-  import * as THREE from './vendor/three.module.min.js?v=production-qa-1';
+  import * as THREE from 'three';
   window.THREE = THREE;
   window.dispatchEvent(new Event('three-ready'));
+  // Post-processing + environment addons (same three.js revision) load after the core; the
+  // renderer draws without them until they arrive, and reports if they never do.
+  Promise.all([
+    import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'),
+    import('three/addons/postprocessing/ShaderPass.js'),
+    import('three/addons/postprocessing/OutputPass.js'),
+    import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/GTAOPass.js'),
+    import('three/addons/postprocessing/SMAAPass.js'),
+    import('three/addons/postprocessing/FXAAPass.js'),
+    import('three/addons/environments/RoomEnvironment.js'),
+  ]).then((mods) => { window.PG_ADDONS = Object.assign({}, ...mods); })
+    .catch(() => { window.PG_ADDONS_FAILED = true; });
 </script>
 <script src="./rules.js"></script>
 <script src="./content.js"></script>
@@ -277,6 +314,8 @@ p { margin: 0.25rem 0; max-width: 70ch; }
 <script src="./audio.js"></script>
 <script src="./platform.js"></script>
 <script src="./net.js"></script>
+<script src="./gfx.js"></script>
+<script src="./gfx-i18n.js"></script>
 <script src="./render.js"></script>
 <script src="./ui.js"></script>
 <script src="./bootstrap.js"></script>

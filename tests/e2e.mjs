@@ -147,10 +147,10 @@ async function runPass(browser, name, ctxOpts, { full, touch }) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
     if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
-    errors.push(`console: ${m.text()}`);
+    errors.push(`console ${m.type()}: ${m.text()}`);
   });
   page.on('response', (r) => {
     const p = r.url();
@@ -295,10 +295,10 @@ async function runModesPass(browser) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
     if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
-    errors.push(`console: ${m.text()}`);
+    errors.push(`console ${m.type()}: ${m.text()}`);
   });
 
   const strikeUntilResults = async (max) => {
@@ -389,6 +389,88 @@ async function runModesPass(browser) {
   console.log('ok - modes: no page errors');
 }
 
+// ---------- graphics pass: presets, an override, persistence (desktop + mobile) ----------
+// Drives Settings → Graphics through the visible controls. Headless Chrome runs on a
+// software GPU, so Auto must resolve to Low; Low and Ultra must both render without
+// console output; a chosen preset and override must apply live and survive a reload.
+async function runGraphicsPass(browser, name, ctxOpts) {
+  const errors = [];
+  const context = await browser.newContext(ctxOpts);
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
+    const url = m.location()?.url || '';
+    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    errors.push(`console ${m.type()}: ${m.text()}`);
+  });
+  const canvasPreset = () => page.getAttribute('#game-canvas', 'data-gfx-preset');
+  const waitPreset = (p) => page.waitForFunction((p) => document.getElementById('game-canvas').dataset.gfxPreset === p, p, { timeout: 8000 });
+  const openGraphics = async () => {
+    await page.click('#btn-settings');
+    await page.waitForSelector('#overlay-settings.open', { timeout: 5000 });
+    await page.locator('#gfx-preset').scrollIntoViewIfNeeded();
+    if (!await page.locator('#gfx-preset').isVisible()) throw new Error('Graphics quality select not visible');
+  };
+  const closeSettings = async () => {
+    await page.locator('#settings-close').scrollIntoViewIfNeeded();
+    await page.click('#settings-close');
+    await page.waitForFunction(() => !document.getElementById('overlay-settings').classList.contains('open'));
+  };
+  try {
+    await page.goto(BASE, { waitUntil: 'load' });
+    await page.waitForSelector('#screen-title.open', { timeout: 15000 });
+    await waitPreset('low');
+    ok(`${name}: Auto graphics resolved to Low on the software GPU`);
+    await startPractice(page);
+    await openGraphics();
+    const autoLabel = await page.locator('#gfx-preset option[value="auto"]').textContent();
+    if (!/Low/.test(autoLabel)) throw new Error(`auto option does not name the detected tier: "${autoLabel}"`);
+
+    await page.selectOption('#gfx-preset', 'ultra');
+    await waitPreset('ultra');
+    await page.waitForTimeout(1200); // let the full post chain (GTAO, bloom, grade, MSAA) render
+    const ultraSummary = await page.textContent('#gfx-summary');
+    if (!/4096² shadows/.test(ultraSummary) || !/px/.test(ultraSummary)) throw new Error(`unexpected Ultra summary: "${ultraSummary}"`);
+    await page.selectOption('#gfx-preset', 'low');
+    await waitPreset('low');
+    await page.waitForTimeout(400);
+    await page.selectOption('#gfx-preset', 'high');
+    await waitPreset('high');
+    ok(`${name}: presets Ultra → Low → High apply live (${ultraSummary.split(' · ').slice(-1)[0]})`);
+
+    // one per-category override: bloom off
+    if (await page.inputValue('#gfx-bloom') !== 'preset') throw new Error('choosing a preset did not reset the overrides');
+    await page.locator('#gfx-bloom').scrollIntoViewIfNeeded();
+    await page.selectOption('#gfx-bloom', 'off');
+    await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent), null, { timeout: 5000 });
+    const applied = await page.evaluate(() => window.PG.render.graphicsInfo().resolved.bloom);
+    if (applied !== 'off') throw new Error(`bloom override not applied (${applied})`);
+    ok(`${name}: bloom override applied live`);
+    await page.screenshot({ path: SHOT('graphics', name) });
+    // the panel must fit: the Done button is reachable inside the scrolling card
+    await closeSettings();
+
+    // persistence across reload
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#screen-title.open', { timeout: 15000 });
+    await waitPreset('high');
+    await startPractice(page);
+    await openGraphics();
+    if (await page.inputValue('#gfx-preset') !== 'high') throw new Error('preset did not survive reload');
+    if (await page.inputValue('#gfx-bloom') !== 'off') throw new Error('override did not survive reload');
+    ok(`${name}: High preset + bloom override survive a reload`);
+    // back to Auto so later passes in this context start clean
+    await page.selectOption('#gfx-preset', 'auto');
+    await waitPreset('low');
+    await closeSettings();
+  } finally {
+    await context.close();
+  }
+  if (errors.length) throw new Error(`${name} graphics pass had page errors:\n  ${errors.join('\n  ')}`);
+  console.log(`ok - ${name} graphics: no console errors or warnings`);
+}
+
 // ---------- main ----------
 let browser = null;
 try {
@@ -400,7 +482,9 @@ try {
   await runPass(browser, 'mobile',
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, { full: false, touch: true });
   await runModesPass(browser);
-  console.log('\nE2E PASS — pocket-greens, desktop + mobile + modes, no page errors');
+  await runGraphicsPass(browser, 'desktop', { viewport: { width: 1280, height: 800 } });
+  await runGraphicsPass(browser, 'mobile', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  console.log('\nE2E PASS — pocket-greens, desktop + mobile + modes + graphics, no page errors');
 } catch (e) {
   failures++;
   console.error('\nE2E FAIL:', e.message || e);

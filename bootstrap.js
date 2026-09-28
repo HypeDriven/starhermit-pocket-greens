@@ -42,16 +42,11 @@
 		AUDIO.setVolume('voice', s.audio.voice);
 		AUDIO.setMuted(s.audio.muted);
 		PLATFORM.setConsent(!!s.telemetry.consent);
-		let tier = s.graphics.tier;
-		if (tier === 'auto') {
-			const cores = navigator.hardwareConcurrency || 4;
-			const mobile = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent);
-			tier = mobile ? (cores >= 6 ? 'medium' : 'low') : (cores >= 4 ? 'high' : 'medium');
-		}
-		G.quality = tier;
-		RENDER.setQuality(tier);
-		RENDER.setReducedMotion(!!s.graphics.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches);
+		// set reduced motion / contrast first so the graphics pass sees them
 		RENDER.setHighContrast(!!s.graphics.highContrast || s.graphics.palette !== 'default');
+		RENDER.setReducedMotion(!!s.graphics.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches);
+		// Graphics quality: Auto picks a preset from the detected GPU (gfx.js); applied live.
+		G.quality = RENDER.setGraphics(s.graphics.gfx).preset;
 		UI.applySettingsToDom();
 		PLATFORM.saveSettings(s);
 	}
@@ -1114,6 +1109,10 @@
 		};
 		PLATFORM.onSync = (s) => UI.setSync(syncLabel(s));
 		G.settings = PLATFORM.loadSettings();
+		// graphics settings: migrate the legacy single "quality tier" onto a preset
+		if (!G.settings.graphics.gfx || typeof G.settings.graphics.gfx !== 'object') {
+			G.settings.graphics.gfx = { preset: PG.gfx.fromLegacyTier(G.settings.graphics.tier) };
+		}
 		G.progress = PLATFORM.loadProgress();
 		UI.init(G.settings, G.progress);
 		wireUi();
@@ -1121,7 +1120,7 @@
 
 		const canvas = document.getElementById('game-canvas');
 		try {
-			RENDER.init(canvas, { tier: 'medium' });
+			RENDER.init(canvas, { gfx: G.settings.graphics.gfx });
 		} catch (e) {
 			UI.openOverlay('overlay-compat'); // clear compatibility message; settings preserved
 			transition('title', 'webgl-unavailable');
@@ -1146,8 +1145,16 @@
 			PLATFORM.refreshIdentity();
 		}
 		updateTitle();
+		showTitleBackdrop();
 		transition('title', 'boot-complete');
 		UI.showScreen('screen-title');
+	}
+
+	// The title menu sits over a live garden hole (decorative; no session, no input).
+	function showTitleBackdrop() {
+		if (RENDER.course) return;
+		const course = CONTENT.AUTHORED[8] || CONTENT.AUTHORED[0];
+		try { RENDER.loadCourse(course, CONTENT.getTheme(course.theme)); } catch (e) { /* backdrop is optional */ }
 	}
 
 	function syncLabel(s) {
