@@ -142,6 +142,8 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
 }
 </style>
 <script src="browser-guard.js"></script>
+<script src="starhermit-sdk.js"></script>
+<script>StarHermit.init();</script>
 </head>
 <body>
 <div id="app">
@@ -200,10 +202,14 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
         <button id="m-daily">Daily Challenge<small>One shared course per UTC day</small></button>
         <button id="m-practice">Practice<small>Any hole, undo allowed, unranked</small></button>
         <button id="m-challenge">Challenges<small>Constrained goals for mastery</small></button>
-        <button id="m-hosted">Hosted Play<small>Private match against a friend or AI</small></button>
+        <button id="m-hosted" hidden>Hosted Play<small>Private match against a friend or AI</small></button>
       </nav>
       <p class="stat" id="title-progress"></p>
       <p class="stat" id="title-account"></p>
+      <div class="menu" aria-label="StarHermit account">
+        <button id="m-invite" hidden>Invite a friend</button>
+        <button id="m-signin" hidden>Sign in with StarHermit</button>
+      </div>
     </div>
   </section>
 
@@ -313,6 +319,7 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
 <script src="./content.js"></script>
 <script src="./session.js"></script>
 <script src="./audio.js"></script>
+<script src="./platform-i18n.js"></script>
 <script src="./platform.js"></script>
 <script src="./net.js"></script>
 <script src="./gfx.js"></script>

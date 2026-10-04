@@ -17,7 +17,7 @@
 		aim: { angle: 0, power: 50, active: false },
 		hint: null,
 		learn: null,          // { tutorialId, step }
-		hosted: null,         // { sessionId, playerId, poll }
+		hosted: null,         // realtime-room match state (signed in only)
 		settings: null,
 		progress: null,
 		quality: 'medium',
@@ -41,7 +41,6 @@
 		AUDIO.setVolume('ambience', s.audio.ambience);
 		AUDIO.setVolume('voice', s.audio.voice);
 		AUDIO.setMuted(s.audio.muted);
-		PLATFORM.setConsent(!!s.telemetry.consent);
 		// set reduced motion / contrast first so the graphics pass sees them
 		RENDER.setHighContrast(!!s.graphics.highContrast || s.graphics.palette !== 'default');
 		RENDER.setReducedMotion(!!s.graphics.reducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -139,8 +138,6 @@
 		RENDER.currentState = G.session.state;
 		RENDER.applySnapshot(G.session.state);
 		AUDIO.startAmbience(theme.ambience);
-		PLATFORM.startActivity(mode);
-		PLATFORM.track('start', { mode });
 		// countdown keeps the "short path to play" explicit without blocking input long
 		transition('countdown', 'round-ready');
 		G.countdown = 2;
@@ -187,7 +184,6 @@
 	function submitStrike(cmd) {
 		const sess = G.session;
 		if (G.hosted && G.hosted.rooms) { roomsSubmit(cmd); return; }
-		if (G.hosted) { hostedSubmit(cmd); return; }
 		transition('resolving', 'strike');
 		RENDER.setAim(null);
 		const res = SESSION.applyCommand(sess, cmd);
@@ -259,7 +255,6 @@
 				const cmd = SESSION.aiStrike(sess, cur.id);
 				if (!cmd) return;
 				transition('resolving', 'ai-strike');
-				if (G.hosted) { hostedSubmit(cmd); return; }
 				handleResult(SESSION.applyCommand(sess, cmd));
 			}, G.settings.graphics.reducedMotion ? 150 : 800);
 			return;
@@ -276,9 +271,6 @@
 		transition('results', 'round-complete');
 		AUDIO.event({ type: 'session-complete' });
 		clearTimeout(G.opponentTimer);
-		if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
-		PLATFORM.stopActivity();
-		PLATFORM.track('round-end', { mode: G.mode });
 		// Hosted rounds terminate inside the server's state, so the session never builds
 		// its own result envelope; derive one from the authoritative terminal block.
 		if (!sess.result && sess.state.terminal) {
@@ -339,27 +331,9 @@
 		}
 		if (G.mode === 'daily') {
 			if (!p.mastery.bestDaily || mine.total < p.mastery.bestDaily) p.mastery.bestDaily = mine.total;
-			submitDailyScore(mine);
 		}
 		PLATFORM.saveProgress(p);
 		return unlocked;
-	}
-
-	async function submitDailyScore(mine) {
-		// Platform leaderboards are script-owned: clients never submit scores hosted.
-		// The dev server accepts submissions for local testing only.
-		if (PLATFORM.state.hosted) return;
-		// Leaderboard submission includes ruleset, content version, seed, assists, duration.
-		const res = await PLATFORM.api('/api/v1/leaderboard', {
-			method: 'POST',
-			body: {
-				board: 'daily', seed: CONTENT.dailySeed(), rulesVersion: RULES.RULES_VERSION,
-				contentVersion: CONTENT.CONTENT_VERSION, score: mine.total,
-				assists: G.settings.controls.timingAssist ? ['timing'] : [], durationMs: G.session.elapsedMs,
-			},
-		});
-		if (res.ok && res.data.rank) UI.toast('Daily rank: #' + res.data.rank);
-		else if (!res.ok && !res.offline) UI.toast('Score not accepted: ' + res.error);
 	}
 
 	function nextAction() {
@@ -384,7 +358,6 @@
 		const tut = CONTENT.TUTORIALS.find(t => t.id === tutorialId);
 		G.learn.stepText = tut.steps[0].text;
 		UI.announce(tut.title + '. ' + tut.steps[0].text, false);
-		PLATFORM.track('tutorial-step', { step: tutorialId + ':0' });
 		setTimeout(refreshHud, 100);
 	}
 
@@ -401,7 +374,6 @@
 			G.learn.stepText = tut.steps[G.learn.step].text;
 			UI.toast(tut.steps[G.learn.step].text);
 			UI.announce(tut.steps[G.learn.step].text, false);
-			PLATFORM.track('tutorial-step', { step: tut.id + ':' + G.learn.step });
 		}
 	}
 
@@ -438,11 +410,11 @@
 			});
 		} else if (mode === 'daily') {
 			UI.renderSetup({
-				title: 'Daily Challenge', desc: 'One shared seed and ruleset per UTC day, synchronized to platform time. Everyone plays the same green.',
+				title: 'Daily Challenge', desc: 'One shared seed and ruleset per UTC day. Everyone plays the same green.',
 				duration: '~2 minutes', players: '1',
 				assists: PLATFORM.state.hosted ? 'No undo • best recorded to your account' : 'No undo',
-				ranked: !PLATFORM.state.hosted,
-				extra: 'Seed: ' + CONTENT.dailySeed() + (PLATFORM.state.timeSynced ? ' (server time)' : ' (local clock)') +
+				ranked: false,
+				extra: 'Seed: ' + CONTENT.dailySeed() + ' (local clock)' +
 					(PLATFORM.state.hosted ? ' • Platform boards are read-only' : ''),
 			});
 		} else if (mode === 'practice') {
@@ -486,12 +458,11 @@
 
 	// ---------- hosted play ----------
 
-	// Two hosted paths, chosen by environment: with a platform launch token the game
-	// uses StarHermit realtime rooms (host-routed over the realtime WebSocket); without
-	// one it uses the bundled dev server's REST sessions (local play/testing only).
+	// Hosted play uses StarHermit realtime rooms (host-routed over the realtime
+	// WebSocket) and needs a launch token; without one the menu entry is hidden.
+	function hostedPlayAvailable() { return PLATFORM.state.hosted && NET.supported(); }
 	function openLobby() {
-		if (PLATFORM.state.hosted && NET.supported()) { openRoomsLobby(); return; }
-		openDevLobby();
+		if (hostedPlayAvailable()) openRoomsLobby();
 	}
 
 	function addPracticeFallback(body) {
@@ -735,92 +706,11 @@
 		}
 	}
 
-	// --- dev-server sessions (local play only; routes 404 on the platform) ---
-
-	async function openDevLobby() {
-		transition('mode-select', 'menu-hosted');
-		UI.showScreen('screen-lobby');
-		const body = document.getElementById('lobby-body');
-		body.innerHTML = '<p>Connecting…</p>';
-		const res = await PLATFORM.api('/api/v1/sessions', {
-			method: 'POST',
-			body: { courseIds: [CONTENT.dailyCourse().id], seed: CONTENT.dailySeed(), players: 2 },
-		});
-		if (!res.ok) {
-			body.innerHTML = '<p>Hosted play needs the game server. ' + (res.offline ? 'You appear to be offline.' : 'Error: ' + res.error) + '</p>' +
-				'<p>Practice against the deterministic AI instead — it is always available offline.</p>';
-			addPracticeFallback(body);
-			return;
-		}
-		// Seat ids come from the server: the local session must use them so turn order,
-		// command `by` fields and the score rails all line up with the authoritative state.
-		G.hosted = { sessionId: res.data.id, playerId: res.data.you, course: res.data.course, players: res.data.players };
-		body.innerHTML = '<p>Match <code>' + res.data.id + '</code> ready. You are <b>' + res.data.you + '</b>. ' +
-			'Strokes alternate; the server is authoritative and your result is submitted automatically.</p>' +
-			'<div id="lobby-status"><p>Waiting for your turn…</p></div>';
-		const start = document.createElement('button');
-		start.className = 'primary';
-		start.textContent = 'Enter match';
-		start.addEventListener('click', enterHosted);
-		body.appendChild(start);
-	}
-
 	function enterHosted() {
 		const h = G.hosted;
 		if (!h) return;
 		h.course = h.course && h.course.course ? h.course.course : h.course;
-		startRound('hosted', [h.course], { players: (h.players && h.players.length) ? h.players : [h.playerId], seed: h.sessionId || h.roomId });
-		if (!h.rooms) hostedSync(); // rooms matches ride the WebSocket instead of polling
-	}
-
-	async function hostedSync() {
-		const h = G.hosted;
-		if (!h) return;
-		const res = await PLATFORM.api('/api/v1/sessions/' + h.sessionId);
-		if (G.hosted !== h) return; // left the match while the poll was in flight
-		if (!res.ok) { UI.toast('Connection issue — retrying'); scheduleHostedPoll(); return; }
-		const s = res.data;
-		h.players = s.players;
-		// Never swap state out from under an in-flight roll; adopt only between strokes.
-		if (G.session && s.state && s.state.tick > G.session.state.tick && G.machine === 'active') {
-			// reconnect path: REST session detail is the source of truth
-			G.session.state = s.state;
-			RENDER.currentState = s.state;
-			RENDER.applySnapshot(s.state);
-			UI.toast('While you were away: ' + (s.movesSince || 0) + ' move(s)');
-		}
-		refreshHud();
-		scheduleHostedPoll();
-	}
-
-	function scheduleHostedPoll() {
-		const h = G.hosted;
-		if (!h) return;
-		clearTimeout(h.poll);
-		h.poll = setTimeout(hostedSync, 2000);
-	}
-
-	let hostedCmdSeq = 0;
-	async function hostedSubmit(cmd) {
-		const h = G.hosted;
-		// stable command id so a retried POST is replayed idempotently by the server
-		const full = Object.assign({ id: h.sessionId + '-' + (++hostedCmdSeq) }, cmd);
-		const res = await PLATFORM.api('/api/v1/sessions/' + h.sessionId + '/commands', { method: 'POST', body: full });
-		if (G.hosted !== h || !G.session) return; // a response must belong to this match
-		if (!res.ok) {
-			AUDIO.event({ type: 'invalid', reason: res.error });
-			UI.announce('Rejected: ' + res.error, true);
-			transition('active', 'server-rejected');
-			refreshHud();
-			return;
-		}
-		// server is authoritative; adopt its state and animate from its trace
-		G.session.state = res.data.state;
-		transition('resolving', 'strike');
-		RENDER.setAim(null);
-		// handleResult finishes the round itself once playback has settled; finishing here
-		// as well would open the results screen over a still-rolling ball.
-		handleResult({ events: res.data.events, error: null, trace: res.data.trace });
+		startRound('hosted', [h.course], { players: (h.players && h.players.length) ? h.players : [h.playerId], seed: h.roomId });
 	}
 
 	// ---------- pause / resume / leave ----------
@@ -844,7 +734,6 @@
 		UI.closeOverlay('overlay-pause');
 		UI.closeOverlay('overlay-results');
 		if (G.hosted && G.hosted.rooms) G.hosted.client.leave();
-		if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
 		clearTimeout(G.countdownTimer);
 		clearTimeout(G.opponentTimer);
 		G.hosted = null;
@@ -853,7 +742,6 @@
 		RENDER.setPaused(false);
 		G.learn = null;
 		AUDIO.stopAmbience();
-		PLATFORM.stopActivity();
 		// the HUD belongs to a round: reset it so no stale score or live Pause button remains
 		RENDER.setAim(null);
 		UI.setHud({ objective: 'Pocket Greens', hole: '–', par: '–', strokes: 0, total: 0, playing: false });
@@ -911,8 +799,8 @@
 
 		document.addEventListener('keydown', (e) => {
 			if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range') return;
-			const k = e.key;
-			if (k === 'Escape') {
+			const k = actionFor(e.code);
+			if (k === 'cancel' || (e.code === 'Escape' && !k)) {
 				// Esc during a pull-back abandons the stroke (as Help documents) before it pauses
 				if (drag) { drag = null; defaultAim(); refreshHud(); }
 				else if (UI.anyOverlayOpen()) { emitCloseTop(); }
@@ -920,7 +808,7 @@
 				e.preventDefault();
 				return;
 			}
-			if (k === 'p' || k === 'P') {
+			if (k === 'pause') {
 				// P toggles the pause overlay from either side; other overlays keep priority
 				if (G.machine === 'paused') { resume(); e.preventDefault(); return; }
 				if (!UI.anyOverlayOpen() && G.session && !G.session.finished) { pause(); e.preventDefault(); }
@@ -928,18 +816,18 @@
 			}
 			if (UI.anyOverlayOpen()) return;
 			if (!canAim()) {
-				if (k === 'f' || k === 'F') RENDER.skipTrace(); // fast-forward to the exact end state
+				if (k === 'fast_forward') RENDER.skipTrace(); // fast-forward to the exact end state
 				return;
 			}
 			switch (k) {
-				case 'ArrowLeft': G.aim.angle -= e.shiftKey ? 0.02 : 0.09; break;
-				case 'ArrowRight': G.aim.angle += e.shiftKey ? 0.02 : 0.09; break;
-				case 'ArrowUp': G.aim.power = Math.min(100, G.aim.power + (e.shiftKey ? 1 : 5)); UI.setPower(Math.round(G.aim.power)); break;
-				case 'ArrowDown': G.aim.power = Math.max(1, G.aim.power - (e.shiftKey ? 1 : 5)); UI.setPower(Math.round(G.aim.power)); break;
-				case ' ': case 'Enter': strike(); e.preventDefault(); return;
-				case 'u': case 'U': doUndo(); return;
-				case 'h': case 'H': doHint(); return;
-				case 'c': case 'C': RENDER.loadCourse(currentCourse(), CONTENT.getTheme(currentCourse().theme)); RENDER.applySnapshot(G.session.state); updateAimView(); return;
+				case 'aim_left': G.aim.angle -= e.shiftKey ? 0.02 : 0.09; break;
+				case 'aim_right': G.aim.angle += e.shiftKey ? 0.02 : 0.09; break;
+				case 'power_up': G.aim.power = Math.min(100, G.aim.power + (e.shiftKey ? 1 : 5)); UI.setPower(Math.round(G.aim.power)); break;
+				case 'power_down': G.aim.power = Math.max(1, G.aim.power - (e.shiftKey ? 1 : 5)); UI.setPower(Math.round(G.aim.power)); break;
+				case 'strike': strike(); e.preventDefault(); return;
+				case 'undo': doUndo(); return;
+				case 'hint': doHint(); return;
+				case 'camera': RENDER.loadCourse(currentCourse(), CONTENT.getTheme(currentCourse().theme)); RENDER.applySnapshot(G.session.state); updateAimView(); return;
 				default: return;
 			}
 			AUDIO.event({ type: 'aim-tick' });
@@ -1057,7 +945,6 @@
 		UI.on('setup-back', () => { UI.showScreen('screen-title'); transition('title', 'setup-back'); });
 		UI.on('lobby-leave', () => {
 			if (G.hosted && G.hosted.rooms) G.hosted.client.leave();
-			if (G.hosted && G.hosted.poll) clearTimeout(G.hosted.poll);
 			G.hosted = null;
 			G.lobbyRoster = null;
 			UI.showScreen('screen-title');
@@ -1086,18 +973,71 @@
 		UI.on('undo', doUndo);
 		UI.on('hint', doHint);
 		UI.on('power', (v) => { G.aim.power = v; updateAimView(); });
-		UI.on('settings-changed', () => { applySettings(); PLATFORM.track('settings-change', { category: 'settings' }); });
+		UI.on('settings-changed', applySettings);
 		UI.on('results-next', () => { const n = nextAction(); UI.closeOverlay('overlay-results'); if (n.run) n.run(); });
 		UI.on('results-retry', () => {
 			if (!G.session) return;
 			UI.closeOverlay('overlay-results');
 			if (G.hosted) { leave(); return; }
-			PLATFORM.track('retry', { mode: G.mode });
 			const holes = G.session.holes;
 			const ch = G.session.challenge;
 			startRound(G.mode, holes, { players: G.session.state.players.map(p => p.id), challenge: ch, seed: G.session.seed });
 		});
 		UI.on('results-menu', leave);
+	}
+
+	// ---------- keyboard bindings ----------
+
+	// Declared as control.* in starhermit.txt; the player's StarHermit overrides
+	// replace these defaults when signed in. Shift (fine aim) is a modifier.
+	const DEFAULT_BINDINGS = {
+		aim_left: ['ArrowLeft'],
+		aim_right: ['ArrowRight'],
+		power_up: ['ArrowUp'],
+		power_down: ['ArrowDown'],
+		strike: ['Space', 'Enter', 'NumpadEnter'],
+		cancel: ['Escape'],
+		pause: ['KeyP'],
+		undo: ['KeyU'],
+		hint: ['KeyH'],
+		camera: ['KeyC'],
+		fast_forward: ['KeyF'],
+	};
+	let bindings = JSON.parse(JSON.stringify(DEFAULT_BINDINGS));
+	function actionFor(code) {
+		for (const a in bindings) if (bindings[a].indexOf(code) >= 0) return a;
+		return null;
+	}
+
+	// ---------- StarHermit account ----------
+
+	function refreshAccountButtons() {
+		UI.setAccountButtons({ signIn: PLATFORM.canSignIn(), invite: !!PLATFORM.inviteLink() });
+		document.getElementById('m-hosted').hidden = !hostedPlayAvailable();
+	}
+
+	function wireAccount() {
+		const t = PG.platformI18n.currentPlatformStrings();
+		const signIn = document.getElementById('m-signin');
+		const invite = document.getElementById('m-invite');
+		signIn.textContent = t.signIn;
+		invite.textContent = t.invite;
+		signIn.addEventListener('click', () => PLATFORM.signIn());
+		invite.addEventListener('click', async () => {
+			const link = PLATFORM.inviteLink();
+			if (!link) return;
+			try {
+				await navigator.clipboard.writeText(link);
+				UI.toast(t.inviteCopied);
+			} catch (e) {
+				UI.toast(t.inviteFailed.replace('{link}', link));
+			}
+		});
+		PLATFORM.onAuth = ({ signedIn }) => {
+			if (!signedIn) UI.toast(t.signedOut);
+			refreshAccountButtons();
+		};
+		refreshAccountButtons();
 	}
 
 	// ---------- boot ----------
@@ -1114,8 +1054,9 @@
 			G.settings.graphics.gfx = { preset: PG.gfx.fromLegacyTier(G.settings.graphics.tier) };
 		}
 		G.progress = PLATFORM.loadProgress();
-		UI.init(G.settings, G.progress);
+		UI.init(G.settings, G.progress, bindings);
 		wireUi();
+		wireAccount();
 	window.PG.game = G; // inspectable state for smoke tests and support tooling
 
 		const canvas = document.getElementById('game-canvas');
@@ -1134,7 +1075,6 @@
 		bindInput();
 		bindLifecycle();
 		onResize();
-		await PLATFORM.syncTime(); // dev server provides /time; hosted play uses the local clock
 		if (PLATFORM.state.hosted) {
 			// remote wins on conflict: adopt the account's valid cloud save over the cache
 			const adopted = await PLATFORM.loadAdoptedProgress(G.progress);
@@ -1143,7 +1083,13 @@
 				UI.progress = G.progress;
 			}
 			PLATFORM.refreshIdentity();
+			// platform settings KV wins over the local cache for known preference keys
+			const remote = await PLATFORM.loadRemoteSettings(G.settings);
+			Object.assign(G.settings, remote);
+			UI.settings = G.settings;
+			applySettings();
 		}
+		PLATFORM.loadBindings(DEFAULT_BINDINGS).then((b) => { bindings = b; UI.renderControlsHelp(b); });
 		updateTitle();
 		showTitleBackdrop();
 		transition('title', 'boot-complete');

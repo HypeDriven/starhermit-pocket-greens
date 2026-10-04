@@ -235,27 +235,7 @@ test('streak achievement: three under-par holes in a row, reset on par, idempote
 	assert.strictEqual(p.mastery.underParStreak, 2);
 });
 
-// ---------- platform: launch token & cloud-save zip ----------
-
-test('jwt payload decode: base64url sub + game_scope, decoded not verified', () => {
-	const PLATFORM = require('./platform');
-	const b64url = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-	const jwt = b64url({ alg: 'none' }) + '.' + b64url({ sub: 'user-123', game_scope: 'pocket-greens', exp: 1 }) + '.sig';
-	const claims = PLATFORM.decodeJwtPayload(jwt);
-	assert.strictEqual(claims.sub, 'user-123');
-	assert.strictEqual(claims.game_scope, 'pocket-greens');
-	assert.strictEqual(PLATFORM.decodeJwtPayload('not-a-jwt'), null);
-});
-
-test('cloud-save zip round-trips through the strict-reader helpers', () => {
-	const PLATFORM = require('./platform');
-	const doc = { version: 2, journey: { unlocked: 3, stars: { j01: 2 } }, achievements: { first_hole: 1 }, mastery: { holesCompleted: 7 } };
-	const bytes = PLATFORM.zipStore('progress.json', new TextEncoder().encode(JSON.stringify(doc)));
-	const back = JSON.parse(new TextDecoder().decode(PLATFORM.unzipFirstEntry(bytes)));
-	assert.deepStrictEqual(back, doc);
-	const b64 = PLATFORM.bytesToBase64(bytes);
-	assert.deepStrictEqual(Array.from(PLATFORM.base64ToBytes(b64)), Array.from(bytes));
-});
+// StarHermit adapter tests live in tests/platform.test.js.
 
 // ---------- golden sessions ----------
 

@@ -178,9 +178,7 @@
 			settingRow('Hold-to-aim (vs toggle)', '<input type="checkbox" ' + (s.controls.holdToAim ? 'checked' : '') + ' data-set="controls.holdToAim">') +
 			settingRow('Timing assistance', '<input type="checkbox" ' + (s.controls.timingAssist ? 'checked' : '') + ' data-set="controls.timingAssist">') +
 			settingRow('Haptics', '<input type="checkbox" ' + (s.controls.haptics ? 'checked' : '') + ' data-set="controls.haptics">') +
-			settingRow('Replay tutorials', '<button data-action="replay-tutorials">Reset lessons</button>') +
-			'<h3>Privacy</h3>' +
-			settingRow('Anonymous usage stats', '<input type="checkbox" ' + (s.telemetry.consent ? 'checked' : '') + ' data-set="telemetry.consent">');
+			settingRow('Replay tutorials', '<button data-action="replay-tutorials">Reset lessons</button>');
 		body.querySelectorAll('[data-set]').forEach(el => {
 			el.addEventListener('change', () => {
 				const path = el.dataset.set.split('.');
@@ -383,29 +381,50 @@
 		document.addEventListener('keydown', trapFocus, true);
 	}
 
-	function init(settings, progress) {
+	function keyLabel(code) {
+		const named = { ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Escape: 'Esc', Space: 'Space', NumpadEnter: 'Num Enter' };
+		if (named[code]) return named[code];
+		if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+		if (/^Digit\d$/.test(code)) return code.slice(5);
+		return String(code).replace(/[^\w ]/g, '');
+	}
+
+	// Help lists the effective keyboard bindings ({ action: codes[] }).
+	function renderControlsHelp(b) {
+		const k = (a) => (b[a] || []).map(keyLabel).join(' / ');
+		renderHelp([
+			{ action: 'Aim', keys: 'Drag from ball, or ' + k('aim_left') + ' / ' + k('aim_right') + ' rotate (hold Shift for fine)' },
+			{ action: 'Power', keys: 'Drag distance, or ' + k('power_up') + ' / ' + k('power_down') + ' (slider)' },
+			{ action: 'Strike', keys: 'Release drag, ' + k('strike') + ', or Strike button' },
+			{ action: 'Cancel aim', keys: k('cancel') + ' or release outside' },
+			{ action: 'Pause', keys: k('pause') + ' or ⏸ button' },
+			{ action: 'Undo (practice)', keys: k('undo') },
+			{ action: 'Hint', keys: k('hint') },
+			{ action: 'Camera reset', keys: k('camera') },
+			{ action: 'Fast-forward roll', keys: k('fast_forward') },
+		]);
+	}
+
+	// Account buttons on the title (sign-in on the hosted domain without a token,
+	// invite when signed in).
+	function setAccountButtons(o) {
+		$('m-signin').hidden = !o.signIn;
+		$('m-invite').hidden = !o.invite;
+	}
+
+	function init(settings, progress, bindings) {
 		ui.settings = settings;
 		ui.progress = progress;
 		bind();
 		renderSettings();
-		renderHelp([
-			{ action: 'Aim', keys: 'Drag from ball, or ←/→ rotate' },
-			{ action: 'Power', keys: 'Drag distance, or ↑/↓ (slider)' },
-			{ action: 'Strike', keys: 'Release drag, Space, or Strike button' },
-			{ action: 'Cancel aim', keys: 'Esc or release outside' },
-			{ action: 'Pause', keys: 'P or ⏸ button' },
-			{ action: 'Undo (practice)', keys: 'U' },
-			{ action: 'Hint', keys: 'H' },
-			{ action: 'Camera reset', keys: 'C' },
-			{ action: 'Fast-forward roll', keys: 'F' },
-		]);
+		renderControlsHelp(bindings);
 		applySettingsToDom();
 	}
 
 	PG.ui = {
 		init, on, showScreen, openOverlay, closeOverlay, anyOverlayOpen, topOverlay,
 		toast, announce, caption, setHud, setRails, setPower, getPower, setControls,
-		setAccount, setSync, escapeHtml,
+		setAccount, setSync, setAccountButtons, renderControlsHelp, escapeHtml,
 		renderSettings, renderGraphics, updateGraphicsSummary, renderSetup, renderResults, applySettingsToDom,
 		get settings() { return ui.settings; },
 		set settings(v) { ui.settings = v; },

@@ -116,11 +116,8 @@ function RoomClient(platform, roomId, handlers) {
 }
 
 RoomClient.prototype.connect = function () {
-	const loc = window.location;
-	const proto = loc.protocol === 'https:' ? 'wss' : 'ws';
-	const url = proto + '://' + loc.host + '/ws/v1/realtime?roomId=' + encodeURIComponent(this.roomId) +
-		'&access_token=' + encodeURIComponent(this.platform.state.token);
-	const ws = new WebSocket(url);
+	// Socket URL (same origin, current launch token) from the StarHermit SDK.
+	const ws = new WebSocket(window.StarHermit.realtime.socketUrl(this.roomId));
 	this.ws = ws;
 	ws.binaryType = 'arraybuffer';
 	const self = this;

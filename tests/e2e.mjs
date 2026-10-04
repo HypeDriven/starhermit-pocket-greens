@@ -10,16 +10,11 @@
  *   visible on-screen controls. A second, shorter pass drives the same
  *   practice flow with touch input (touchscreen.tap) on a mobile viewport.
  *
- * The game is an authoritative minigolf/course engine: `starhermit.txt`
- * declares `server=server.js` and the client boot-syncs clock time via
- * `GET /api/v1/time` (a real object with `now`), runs a presence heartbeat
- * and submits hosted sessions / scores to the same server. Because those
- * routes carry real payloads (nothing degrades the app if they are missing,
- * but `/api/v1/time` must return `{now}`, and presence/telemetry POSTs are
- * expected), this test launches the real `node server.js` backend on an
- * ephemeral port — the same approach the sibling authoritative titles use —
- * rather than the static-SPA `/api -> {}` stub. The page is pointed at it and
- * the child is killed in teardown.
+ * The game is an authoritative minigolf/course engine (`starhermit.txt` declares
+ * `server=server.js`). This test launches `node server.js` on an ephemeral port
+ * purely as the static host and asserts a standalone load (no launch token) makes
+ * zero same-origin /api or /ws requests; hosted play (realtime rooms) needs a
+ * token, so its menu entry must stay hidden. The child is killed in teardown.
  *
  * The test observes `window.PG.game` (bootstrap.js: `window.PG.game = G`)
  * read-only: it only reads the machine/phase, the current aim, the ball and
@@ -81,6 +76,14 @@ await waitForServer(serverChild, BASE);
 console.log(`serving ${ROOT} at ${BASE} (backend pid ${serverChild.pid})`);
 
 let failures = 0;
+
+// Standalone (no launch token) must never call own-server routes.
+function watchOwnApi(page, errors) {
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (u.origin === BASE && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`own-server request: ${r.method()} ${u.pathname}`);
+  });
+}
 const ok = (name) => console.log(`ok - ${name}`);
 
 // ---------- read-only observation of the game state handle ----------
@@ -146,15 +149,16 @@ async function runPass(browser, name, ctxOpts, { full, touch }) {
   const context = await browser.newContext(ctxOpts);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  watchOwnApi(page, errors);
   page.on('console', (m) => {
     if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
-    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    if (/Failed to load resource/.test(m.text()) && /\/favicon/.test(url)) return;
     errors.push(`console ${m.type()}: ${m.text()}`);
   });
   page.on('response', (r) => {
     const p = r.url();
-    if (r.status() >= 400 && !/\/api\/|\/favicon/.test(p)) errors.push(`http ${r.status()}: ${p}`);
+    if (r.status() >= 400 && !/\/favicon/.test(p)) errors.push(`http ${r.status()}: ${p}`);
   });
 
   const posTap = async (page, sel, xf, yf) => {
@@ -286,18 +290,19 @@ async function runPass(browser, name, ctxOpts, { full, touch }) {
   console.log(`ok - ${name}: no page errors`);
 }
 
-// ---------- modes pass: challenge (+ restart hole), hosted match, learn ----------
+// ---------- modes pass: challenge (+ restart hole), hosted entry hidden, learn ----------
 // These flows are not on the practice happy path but share the same round lifecycle,
-// so they are where a lost challenge, a wrong seat id or a missing result envelope shows up.
+// so they are where a lost challenge or a missing result envelope shows up.
 async function runModesPass(browser) {
   const errors = [];
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  watchOwnApi(page, errors);
   page.on('console', (m) => {
     if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
-    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    if (/Failed to load resource/.test(m.text()) && /\/favicon/.test(url)) return;
     errors.push(`console ${m.type()}: ${m.text()}`);
   });
 
@@ -344,29 +349,9 @@ async function runModesPass(browser) {
     if (!await page.locator('#btn-pause[disabled]').count()) throw new Error('Pause stayed enabled after leaving the round');
     ok('modes: leaving a round resets the HUD');
 
-    // --- hosted: the client must use the server-assigned seat id ---
-    await page.click('#m-hosted');
-    await page.waitForSelector('#screen-lobby.open', { timeout: 8000 });
-    await page.waitForFunction(() => !!window.PG?.game?.hosted?.sessionId, null, { timeout: 10000 });
-    const seat = await page.evaluate(() => window.PG.game.hosted.playerId);
-    await page.click('#lobby-body button.primary'); // "Enter match"
-    await waitPlayActive(page);
-    const seats = await page.evaluate(() => window.PG.game.session.state.players.map((p) => p.id));
-    if (!seats.includes(seat)) throw new Error(`local session seats ${JSON.stringify(seats)} exclude server seat ${seat}`);
-    const turn0 = await readState(page);
-    if (turn0.current !== seat) throw new Error(`expected to control seat ${seat}, current is ${turn0.current}`);
-    await page.click('#btn-strike');
-    // the server must accept the stroke: its tick advances and the turn passes on
-    await page.waitForFunction((s) => {
-      const st = window.PG?.game?.session?.state;
-      return !!st && (st.players.find((p) => p.id === s)?.strokes ?? 0) >= 1;
-    }, seat, { timeout: 20000 });
-    ok(`modes: hosted match accepted an authoritative stroke as seat "${seat}"`);
-    await page.click('#btn-pause').catch(() => {});
-    await page.waitForSelector('#overlay-pause.open', { timeout: 5000 });
-    await page.click('#p-leave');
-    await page.waitForSelector('#screen-title.open', { timeout: 8000 });
-    ok('modes: left the hosted match cleanly');
+    // --- hosted play needs a launch token: standalone hides its menu entry ---
+    if (await page.locator('#m-hosted').isVisible()) throw new Error('Hosted Play is offered without a launch token');
+    ok('modes: hosted play hidden standalone');
 
     // --- learn: the lesson objective must be on screen, and must not leak into the next mode ---
     await page.click('#m-learn');
@@ -398,10 +383,11 @@ async function runGraphicsPass(browser, name, ctxOpts) {
   const context = await browser.newContext(ctxOpts);
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  watchOwnApi(page, errors);
   page.on('console', (m) => {
     if (!['error', 'warning'].includes(m.type()) || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
-    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    if (/Failed to load resource/.test(m.text()) && /\/favicon/.test(url)) return;
     errors.push(`console ${m.type()}: ${m.text()}`);
   });
   const canvasPreset = () => page.getAttribute('#game-canvas', 'data-gfx-preset');
