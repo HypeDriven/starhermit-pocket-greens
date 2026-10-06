@@ -168,7 +168,7 @@ Follow the skill pack's acceptance gate: deterministic seeds, debug views for co
 - `render`: Three.js scene graph, semantic entity views, camera, lighting, VFX, quality.
 - `gfx` (`gfx.js`): pure graphics quality model — presets, category overrides, GPU detection, `resolve()`, `describe()`; `gfx-i18n.js` holds the Graphics panel strings. Post-processing and environment addons are vendored under `vendor/addons/` (three r185, matching `vendor/three.*.min.js`) and mapped by the import map as `three/addons/`.
 - Tests: `test.js` (rules, content, server smoke) and `tests/gfx.test.js` (`node --test`) run via `npm test`; `tests/e2e.mjs` drives the UI in headless Chrome, including a Graphics pass (presets, an override, reload persistence) at desktop and mobile sizes.
-- `ui`: responsive DOM shell, focus, localization, settings, overlays, accessibility mirror.
+- `ui`: responsive DOM shell, focus, localization, settings, overlays, accessibility mirror. Screens and overlays open at their top (heading visible): focus moves in with `preventScroll`.
 - `audio`: buses, event mapping, focus/background behavior, decode and memory policy.
 - `content`: versioned levels, themes, tutorials, validation metadata.
 - `platform`: adapter over the shared StarHermit SDK (launch token and renewal, sign-in, profile, cloud save, settings KV, bindings, invite link, read-only boards). It never calls the game's own server routes (`/api`, `/ws`).

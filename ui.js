@@ -35,12 +35,19 @@
 		}
 	}
 
+	// A focused primary button low in a tall card must not scroll the heading
+	// away: screens and overlays always open at their top.
+	function resetScroll(root) {
+		for (const n of [root, ...root.querySelectorAll('*')]) if (n.scrollTop) n.scrollTop = 0;
+	}
+
 	function showScreen(id) {
 		for (const s of SCREENS) $(s).classList.toggle('open', s === id);
 		setBackdropInert(!!id);
 		if (id) {
 			const first = $(id).querySelector('button.primary, button');
-			if (first) first.focus();
+			if (first) first.focus({ preventScroll: true });
+			resetScroll($(id));
 		}
 		emit('screen', id);
 	}
@@ -52,7 +59,8 @@
 		if (!anyOverlayOpen()) ui.lastFocus = document.activeElement;
 		$(id).classList.add('open');
 		const first = $(id).querySelector('button.primary, button');
-		if (first) first.focus();
+		if (first) first.focus({ preventScroll: true });
+		resetScroll($(id));
 	}
 
 	function closeOverlay(id) {
