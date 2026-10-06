@@ -311,7 +311,11 @@ async function runModesPass(browser) {
       if (await page.locator('#overlay-results.open').count()) return true;
       try { await page.waitForSelector('#btn-strike:not([disabled])', { timeout: 8000 }); }
       catch { return !!(await page.locator('#overlay-results.open').count()); }
-      await page.click('#btn-strike');
+      // The last ball can settle and open results just after Strike re-enables
+      // (slow frames on big viewports): a click blocked by the results overlay
+      // means the round is over, not a failure.
+      try { await page.click('#btn-strike', { timeout: 5000 }); }
+      catch (e) { if (await page.locator('#overlay-results.open').count()) return true; throw e; }
       await page.waitForTimeout(400);
     }
     return !!(await page.locator('#overlay-results.open').count());
