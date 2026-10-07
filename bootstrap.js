@@ -301,6 +301,22 @@
 		});
 		UI.openOverlay('overlay-results');
 		UI.announce(headline + '. Total ' + mine.total + '.', true);
+		postVsPar(mine, parTotal);
+	}
+
+	// Signed in, every finished solo round (Journey, Daily, Practice, Challenge —
+	// not Learn or hosted tables) posts the player's strokes relative to par to the
+	// platform `vs-par` board; the results overlay shows the rank line.
+	function postVsPar(mine, parTotal) {
+		const line = document.getElementById('results-lb');
+		if (!line) return;
+		if (!PLATFORM.state.hosted || G.mode === 'learn' || G.mode === 'hosted' || !(mine.holes > 0)) { line.hidden = true; return; }
+		const T = window.PG.platformI18n.currentPlatformStrings();
+		line.hidden = false;
+		line.textContent = T.lbPosting;
+		PLATFORM.postVsPar(mine.total - parTotal).then(r => {
+			line.textContent = !r.posted ? T.lbNotPosted : r.rank ? T.lbRank.replace('{rank}', r.rank) : T.lbPosted;
+		});
 	}
 
 	function awardProgress(sess) {

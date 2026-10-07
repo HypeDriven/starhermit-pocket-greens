@@ -193,7 +193,7 @@ No module may mutate rules state except through a validated command. Rendering c
 ## 6. StarHermit integration
 
 ### Packaging and launch
-- The distribution has `starhermit.txt` at its root (`name=Pocket Greens`, `launch=index.html`, `server=server.js`, `control.*` lines). `index.html` loads the shared SDK `starhermit-sdk.js` (an unchanged copy of `tools/starhermit-sdk.js`) and calls `StarHermit.init()` before the game scripts; `platform.js` is the game's adapter over `window.StarHermit`.
+- The distribution has `starhermit.txt` at its root (`name=Pocket Greens`, `launch=index.html`, `server=score-script.js`, `control.*` lines). `score-script.js` is the platform script (canonical copy in the games repo's `tools/score-script.js`); it range-checks a posted score and writes it to the `vs-par` leaderboard. `server.js` is the local dev server only. `index.html` loads the shared SDK `starhermit-sdk.js` (an unchanged copy of `tools/starhermit-sdk.js`) and calls `StarHermit.init()` before the game scripts; `platform.js` is the game's adapter over `window.StarHermit`.
 - The SDK reads `#game_token=` (library launch) or `#access_token=` (direct sign-in return), strips the launch fragment, takes the slug from the `game_scope` claim and renews the token via `POST /api/v1/games/{slug}/launch-token`. Tokens are never persisted. When renewal is refused the game toasts that it is signed out and keeps playing locally.
 - Without a token no StarHermit request is made. On `<id>.starhermit.com` without a token the title shows **Sign in with StarHermit**, which redirects through the platform sign-in.
 - The client never calls the bundled `server.js` routes (time, REST sessions, presence, telemetry, leaderboard); the device clock is used. Without a launch token the game makes no network request beyond its static files.
@@ -210,7 +210,8 @@ No module may mutate rules state except through a validated command. Rendering c
 - Without a launch token Hosted Play is hidden (there are no own-server REST sessions).
 
 ### Achievements and leaderboards
-- Achievements are local and part of the cloud-saved progress doc; the platform has no server-declared achievements for this game. Platform boards are never written by the client; nothing is submitted standalone.
+- Achievements are local and part of the cloud-saved progress doc; the platform has no server-declared achievements for this game.
+- Leaderboard: signed in, every finished solo round (Journey, Daily, Practice, Challenge — not Learn or hosted tables) posts the player's strokes relative to par (total minus par) through `StarHermit.submitScores` (a practice session whose `score-script.js` posts it to the `vs-par` board: integer, lower is better, −10 to 30), and the results overlay shows "Leaderboard rank: #N" (or posted / not posted), localized in `platform-i18n.js`. Standalone nothing is posted and no line shows.
 
 ### Not used
 - Session chat, the friends picker, matchmaking queues and replays need a platform game script (rooms have no chat conversation); voice is not used.

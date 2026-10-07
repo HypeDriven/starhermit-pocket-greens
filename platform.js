@@ -252,11 +252,28 @@ if (hasWindow) {
 	initAuth();
 }
 
+// Platform leaderboard (score-script.js): post a finished round's strokes
+// relative to par via StarHermit.submitScores; resolves {posted, rank} — the
+// player's rank on the `vs-par` board (lower is better), or null.
+async function postVsPar(vsPar) {
+	if (!hosted()) return { posted: false, rank: null };
+	const sh = sdk();
+	try {
+		const keys = await sh.submitScores({ 'vs-par': vsPar });
+		if (!keys || keys.indexOf('vs-par') < 0) return { posted: false, rank: null };
+		try {
+			const r = await sh.leaderboard('vs-par', { pageSize: 100 });
+			const me = ((r && r.items) || []).find(i => i.userId === sh.userId);
+			return { posted: true, rank: me ? me.rank : null };
+		} catch (e) { return { posted: true, rank: null }; }
+	} catch (e) { return { posted: false, rank: null }; }
+}
+
 const platformApi = {
 	now, api, state, initAuth,
 	loadSettings, saveSettings, loadProgress, saveProgress, syncSettings, loadRemoteSettings, loadBindings,
 	loadAdoptedProgress, queueCloudSave, flushCloudSave,
-	nicknameFor, refreshIdentity, canSignIn, signIn, inviteLink,
+	nicknameFor, refreshIdentity, canSignIn, signIn, inviteLink, postVsPar,
 	ACHIEVEMENTS, unlockAchievement, recordHoleStreak, DEFAULT_SETTINGS, DEFAULT_PROGRESS,
 	onIdentity: null, onSync: null, onAuth: null,
 };
