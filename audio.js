@@ -29,7 +29,7 @@ function ensureContext() {
 		const g = ctx.createGain();
 		g.gain.value = muted ? 0 : volumes[b];
 		g.connect(ctx.destination);
-		buses[b] = g;
+		buses[b] = (globalThis.GameOptions ? globalThis.GameOptions.tagBus(g, b) : g);
 	}
 	return true;
 }
@@ -59,7 +59,7 @@ function caption(text) { if (captionSink) captionSink(text); }
 function blip(bus, opts) {
 	if (!ctx || muted) return;
 	const t0 = ctx.currentTime + (opts.delay || 0);
-	const osc = ctx.createOscillator();
+	const osc = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), bus) : ctx.createOscillator());
 	osc.type = opts.type || 'sine';
 	osc.frequency.setValueAtTime(opts.freq || 440, t0);
 	if (opts.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, opts.slide), t0 + (opts.dur || 0.15));
@@ -76,7 +76,7 @@ function blip(bus, opts) {
 		const buf = ctx.createBuffer(1, len, ctx.sampleRate);
 		const d = buf.getChannelData(0);
 		for (let i = 0; i < len; i++) d[i] = (seedFn() * 2 - 1) * (1 - i / len);
-		const src = ctx.createBufferSource();
+		const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), bus) : ctx.createBufferSource());
 		src.buffer = buf;
 		const ng = ctx.createGain();
 		ng.gain.value = opts.noiseGain || 0.15;
@@ -120,7 +120,7 @@ function requestSample(name) {
 function playSample(name) {
 	const entry = sfxCache[name];
 	if (!entry || typeof entry.then === 'function') return false;
-	const src = ctx.createBufferSource();
+	const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), name) : ctx.createBufferSource());
 	src.buffer = entry;
 	src.connect(buses.effects);
 	src.start();
@@ -185,11 +185,11 @@ function startAmbience(kind) {
 	const g = ctx.createGain();
 	g.gain.value = 0.05;
 	g.connect(buses.ambience);
-	const osc = ctx.createOscillator();
+	const osc = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), null) : ctx.createOscillator());
 	osc.type = 'sine';
 	// kinds are the theme ambience names from content.js (birds/wind/water/crickets/still)
 	osc.frequency.value = kind === 'crickets' ? 110 : kind === 'still' ? 196 : 147;
-	const lfo = ctx.createOscillator();
+	const lfo = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), null) : ctx.createOscillator());
 	lfo.frequency.value = kind === 'water' ? 0.4 : 0.18;
 	const lfoG = ctx.createGain();
 	lfoG.gain.value = 0.025;

@@ -372,6 +372,7 @@
 		$('btn-pause').addEventListener('click', () => emit('pause'));
 		$('btn-help').addEventListener('click', () => emit('help'));
 		$('btn-settings').addEventListener('click', () => emit('settings'));
+		$('m-settings').addEventListener('click', () => emit('settings'));
 		$('p-resume').addEventListener('click', () => emit('resume'));
 		$('p-settings').addEventListener('click', () => emit('settings'));
 		$('p-help').addEventListener('click', () => emit('help'));

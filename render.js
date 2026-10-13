@@ -884,9 +884,9 @@ function renderFrame(dtMs) {
 	if (key !== R.postKey) { R.postKey = key; buildPost(); }
 	if (!R.envTex && R.q.reflections === 'on') applyEnvironment();
 	if (R.composer) {
-		try { R.composer.render(dtMs / 1000); }
-		catch (e) { disposePost(); R.postFailed = true; R.renderer.render(R.scene, R.camera); }
-	} else R.renderer.render(R.scene, R.camera);
+		try { (globalThis.GameOptions ? globalThis.GameOptions.draw(R.composer.renderer, () => R.composer.render(dtMs / 1000)) : R.composer.render(dtMs / 1000)); }
+		catch (e) { disposePost(); R.postFailed = true; (globalThis.GameOptions ? globalThis.GameOptions.draw(R.renderer, () => R.renderer.render(R.scene, R.camera)) : R.renderer.render(R.scene, R.camera)); }
+	} else (globalThis.GameOptions ? globalThis.GameOptions.draw(R.renderer, () => R.renderer.render(R.scene, R.camera)) : R.renderer.render(R.scene, R.camera));
 	R.dirty = false;
 }
 

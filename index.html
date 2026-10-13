@@ -145,6 +145,7 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
    it; the course canvas stays unzoomed and simply fills the playfield. */
 #statusbar, .rail, #action-tray, #captions, #toast, .screen, .overlay { zoom: var(--ui-scale, 1); }
 </style>
+<script src="game-options.js" data-game="pocket-greens"></script>
 <script src="ui-scale.js"></script>
 <script src="browser-guard.js"></script>
 <script src="starhermit-sdk.js"></script>
@@ -207,6 +208,7 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
         <button id="m-daily">Daily Challenge<small>One shared course per UTC day</small></button>
         <button id="m-practice">Practice<small>Any hole, undo allowed, unranked</small></button>
         <button id="m-challenge">Challenges<small>Constrained goals for mastery</small></button>
+        <button id="m-settings">Settings</button>
         <button id="m-hosted" hidden>Hosted Play<small>Private match against a friend or AI</small></button>
       </nav>
       <p class="stat" id="title-progress"></p>
