@@ -16,6 +16,11 @@ let buses = null;
 let volumes = { music: 0.6, effects: 0.9, ambience: 0.5, voice: 0.8 };
 let muted = false;
 let captionSink = null; // function(text) for accessibility captions of meaningful audio
+// Captions follow the game language (i18n.js) in the browser; plain en-US in node tests.
+const tr = (k, v) => {
+	if (typeof window !== 'undefined' && window.PG && window.PG.i18n) return window.PG.i18n.t(k, v);
+	return v ? String(k).replace(/\{(\w+)\}/g, (m, x) => (x in v ? String(v[x]) : m)) : k;
+};
 let ambienceNodes = null;
 let seedFn = RULES.mulberry32(1234);
 
@@ -142,10 +147,10 @@ function event(e, opts) {
 	switch (e.type) {
 		case 'ui': if (!sampled) blip('effects', { freq: 660 * variant, dur: 0.06, gain: 0.12 }); break;
 		case 'aim-tick': if (!sampled) blip('effects', { freq: 880 * variant, dur: 0.03, gain: 0.05 }); break;
-		case 'invalid': if (!sampled) blip('effects', { freq: 180, dur: 0.12, type: 'square', gain: 0.1 }); caption('Invalid action: ' + (e.reason || '')); break;
+		case 'invalid': if (!sampled) blip('effects', { freq: 180, dur: 0.12, type: 'square', gain: 0.1 }); caption(tr('Invalid action: {reason}', { reason: e.reason ? (tr('reason.' + e.reason) !== 'reason.' + e.reason ? tr('reason.' + e.reason) : e.reason) : '' })); break;
 		case 'strike':
 			if (!sampled) blip('effects', { freq: 220 * variant, slide: 90, dur: 0.14, gain: 0.3, noise: true, noiseFreq: 900, noiseGain: 0.2 });
-			caption('Stroke ' + (e.power != null ? Math.round(e.power) + '% power' : ''));
+			caption(e.power != null ? tr('Stroke {n}% power', { n: Math.round(e.power) }) : tr('Stroke'));
 			break;
 		case 'bounce': {
 			if (!sampled) {
@@ -156,7 +161,7 @@ function event(e, opts) {
 		}
 		case 'splash':
 			if (!sampled) blip('effects', { freq: 300, slide: 120, dur: 0.3, gain: 0.25, noise: true, noiseFreq: 500, noiseDur: 0.25, noiseGain: 0.3 });
-			caption('Splash — penalty stroke');
+			caption(tr('Splash — penalty stroke'));
 			break;
 		case 'holed':
 			if (!sampled) {
@@ -164,18 +169,18 @@ function event(e, opts) {
 				blip('effects', { freq: 659, dur: 0.12, gain: 0.2, delay: 0.1 });
 				blip('effects', { freq: 784, dur: 0.25, gain: 0.24, delay: 0.2 });
 			}
-			caption('Holed in ' + (e.strokes || '?') + ' (par ' + (e.par || '?') + ')');
+			caption(tr('Holed in {n} (par {par})', { n: e.strokes || '?', par: e.par || '?' }));
 			break;
-		case 'capped': if (!sampled) blip('effects', { freq: 240, slide: 160, dur: 0.3, gain: 0.18 }); caption('Stroke cap reached'); break;
+		case 'capped': if (!sampled) blip('effects', { freq: 240, slide: 160, dur: 0.3, gain: 0.18 }); caption(tr('Stroke cap reached')); break;
 		case 'round-complete':
 			if (!sampled) [523, 659, 784, 1047].forEach((f, i) => blip('music', { freq: f, dur: 0.3, gain: 0.2, delay: i * 0.14, type: 'triangle' }));
-			caption('Round complete');
+			caption(tr('Round complete'));
 			break;
 		case 'session-complete':
 			if (!sampled) [392, 523, 659, 784, 1047].forEach((f, i) => blip('music', { freq: f, dur: 0.35, gain: 0.22, delay: i * 0.15, type: 'triangle' }));
-			caption('Session results ready');
+			caption(tr('Session results ready'));
 			break;
-		case 'undo': if (!sampled) blip('effects', { freq: 500, slide: 700, dur: 0.1, gain: 0.12 }); caption('Undone'); break;
+		case 'undo': if (!sampled) blip('effects', { freq: 500, slide: 700, dur: 0.1, gain: 0.12 }); caption(tr('Undone')); break;
 	}
 }
 

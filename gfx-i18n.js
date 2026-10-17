@@ -132,6 +132,8 @@ function pickLocale(tag) {
 }
 
 function strings(tag) {
+	// The game language (i18n.js) when loaded; the browser language otherwise.
+	if (tag == null && typeof window !== 'undefined' && window.PG && window.PG.i18n) tag = window.PG.i18n.locale;
 	if (tag == null && typeof navigator !== 'undefined') tag = navigator.language;
 	return S[pickLocale(tag)];
 }

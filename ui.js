@@ -6,6 +6,7 @@
 (function () {
 	const PG = window.PG;
 	const $ = (id) => document.getElementById(id);
+	const T = (k, v) => PG.i18n.t(k, v);
 
 	const SCREENS = ['screen-title', 'screen-setup', 'screen-lobby'];
 	const OVERLAYS = ['overlay-pause', 'overlay-settings', 'overlay-results', 'overlay-help', 'overlay-compat'];
@@ -159,15 +160,17 @@
 
 	// ---------- settings ----------
 
+	// Labels carry data-i18n so a language change relabels them in place.
 	function settingRow(label, inputHtml) {
-		return '<div class="setting-row"><label>' + label + '</label>' + inputHtml + '</div>';
+		return '<div class="setting-row"><label data-i18n="' + escapeHtml(label) + '">' + escapeHtml(T(label)) + '</label>' + inputHtml + '</div>';
 	}
+	const H3 = (key) => '<h3 data-i18n="' + escapeHtml(key) + '">' + escapeHtml(T(key)) + '</h3>';
 
 	function renderSettings() {
 		const s = ui.settings;
 		const body = $('settings-body');
 		body.innerHTML =
-			'<h3>Audio</h3>' +
+			H3('Audio') +
 			settingRow('Music', '<input type="range" min="0" max="1" step="0.05" value="' + s.audio.music + '" data-set="audio.music">') +
 			settingRow('Effects', '<input type="range" min="0" max="1" step="0.05" value="' + s.audio.effects + '" data-set="audio.effects">') +
 			settingRow('Ambience', '<input type="range" min="0" max="1" step="0.05" value="' + s.audio.ambience + '" data-set="audio.ambience">') +
@@ -175,18 +178,20 @@
 			settingRow('Mute all', '<input type="checkbox" ' + (s.audio.muted ? 'checked' : '') + ' data-set="audio.muted">') +
 			settingRow('Captions for sounds', '<input type="checkbox" ' + (s.audio.captions ? 'checked' : '') + ' data-set="audio.captions">') +
 			'<h3 id="gfx-h">' + escapeHtml(gfxStrings().graphics) + '</h3>' +
-			'<div id="gfx-section" role="group" aria-labelledby="gfx-h"></div>' +
+			// The game's Graphics rows rebuild only their own box (#gfx-own); the shared
+			// Sound / Language / Report sections (game-options.js) mount after it.
+			'<div id="gfx-section" role="group" aria-labelledby="gfx-h" data-options-graphics><div id="gfx-own"></div></div>' +
 			settingRow('Reduced motion', '<input type="checkbox" ' + (s.graphics.reducedMotion ? 'checked' : '') + ' data-set="graphics.reducedMotion">') +
 			settingRow('High contrast', '<input type="checkbox" ' + (s.graphics.highContrast ? 'checked' : '') + ' data-set="graphics.highContrast">') +
 			settingRow('Larger text', '<input type="checkbox" ' + (s.graphics.largeText ? 'checked' : '') + ' data-set="graphics.largeText">') +
 			settingRow('Color-vision palette', '<select data-set="graphics.palette">' +
-				['default', 'deuteranopia', 'protanopia', 'tritanopia'].map(t => '<option ' + (s.graphics.palette === t ? 'selected' : '') + '>' + t + '</option>').join('') + '</select>') +
-			'<h3>Controls</h3>' +
+				['default', 'deuteranopia', 'protanopia', 'tritanopia'].map(t => '<option value="' + t + '" ' + (s.graphics.palette === t ? 'selected' : '') + ' data-i18n="palette.' + t + '">' + escapeHtml(T('palette.' + t)) + '</option>').join('') + '</select>') +
+			H3('Controls') +
 			settingRow('Left-handed controls', '<input type="checkbox" ' + (s.controls.leftHanded ? 'checked' : '') + ' data-set="controls.leftHanded">') +
 			settingRow('Hold-to-aim (vs toggle)', '<input type="checkbox" ' + (s.controls.holdToAim ? 'checked' : '') + ' data-set="controls.holdToAim">') +
 			settingRow('Timing assistance', '<input type="checkbox" ' + (s.controls.timingAssist ? 'checked' : '') + ' data-set="controls.timingAssist">') +
 			settingRow('Haptics', '<input type="checkbox" ' + (s.controls.haptics ? 'checked' : '') + ' data-set="controls.haptics">') +
-			settingRow('Replay tutorials', '<button data-action="replay-tutorials">Reset lessons</button>');
+			settingRow('Replay tutorials', '<button data-action="replay-tutorials" data-i18n="Reset lessons">' + escapeHtml(T('Reset lessons')) + '</button>');
 		body.querySelectorAll('[data-set]').forEach(el => {
 			el.addEventListener('change', () => {
 				const path = el.dataset.set.split('.');
@@ -200,8 +205,17 @@
 		body.querySelector('[data-action="replay-tutorials"]').addEventListener('click', () => {
 			ui.settings.tutorial.completed = {};
 			emit('settings-changed', ui.settings);
-			toast('Lessons reset');
+			toast(T('Lessons reset'));
 		});
+	}
+
+	// Language change while Settings is open: relabel the game's rows in place and
+	// rebuild only the Graphics box; the shared sections relabel themselves.
+	function relabelSettings() {
+		PG.i18n.applyStatic($('settings-body'));
+		const h = $('gfx-h');
+		if (h) h.textContent = gfxStrings().graphics;
+		renderGraphics();
 	}
 
 	// ---------- graphics (quality presets, per-effect overrides, render scale) ----------
@@ -218,7 +232,7 @@
 	}
 
 	function renderGraphics() {
-		const box = $('gfx-section');
+		const box = $('gfx-own');
 		if (!box) return;
 		const GFX = PG.gfx, T = gfxStrings();
 		const saved = gfxSaved();
@@ -302,36 +316,39 @@
 
 	function renderHelp(bindings) {
 		$('help-body').innerHTML =
-			'<p><strong>Goal:</strong> hole out in the fewest strokes. Water adds a penalty stroke and returns the ball. Holes are capped at double par plus one.</p>' +
-			'<h3>Controls</h3><ul>' +
-			bindings.map(b => '<li><strong>' + b.action + ':</strong> ' + b.keys + '</li>').join('') + '</ul>' +
-			'<h3>Hazards</h3><ul>' +
-			'<li><strong>Water</strong> (blue): +1 penalty stroke, ball returns to where you struck.</li>' +
-			'<li><strong>Sand</strong> (pale): heavy friction — play firm or around.</li>' +
-			'<li><strong>Walls & obstacles</strong>: the ball banks off them; use them.</li>' +
-			'<li><strong>Keepers</strong> (moving): time your stroke past their patrol.</li>' +
-			'</ul><p>Fast balls can lip out of the cup — arrive softly.</p>';
+			'<p>' + T('help.goal') + '</p>' +
+			'<h3>' + escapeHtml(T('Controls')) + '</h3><ul>' +
+			bindings.map(b => '<li><strong>' + escapeHtml(b.action) + ':</strong> ' + escapeHtml(b.keys) + '</li>').join('') + '</ul>' +
+			'<h3>' + escapeHtml(T('Hazards')) + '</h3><ul>' +
+			'<li>' + T('help.water') + '</li>' +
+			'<li>' + T('help.sand') + '</li>' +
+			'<li>' + T('help.walls') + '</li>' +
+			'<li>' + T('help.keepers') + '</li>' +
+			'</ul><p>' + escapeHtml(T('Fast balls can lip out of the cup — arrive softly.')) + '</p>';
 	}
 
 	// ---------- results ----------
 
 	function renderResults(result, opts) {
 		opts = opts || {};
+		const who = opts.playerLabel || ((id) => id);
 		const rows = result.results.map((r, i) =>
-			'<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(r.id) + '</td><td>' + r.strokes + '</td><td>' +
+			'<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(who(r.id)) + '</td><td>' + r.strokes + '</td><td>' +
 			r.penalties + '</td><td><b>' + r.total + '</b></td></tr>').join('');
-		let html = '<p><strong>' + escapeHtml(opts.headline || 'Round complete') + '</strong></p>' +
-			'<table style="width:100%;border-collapse:collapse" summary="Score breakdown">' +
-			'<thead><tr><th>#</th><th>Player</th><th>Strokes</th><th>Penalties</th><th>Total</th></tr></thead>' +
+		let html = '<p><strong>' + escapeHtml(opts.headline || T('Round complete')) + '</strong></p>' +
+			'<table style="width:100%;border-collapse:collapse" summary="' + escapeHtml(T('Score breakdown')) + '">' +
+			'<thead><tr><th>#</th><th>' + escapeHtml(T('Player')) + '</th><th>' + escapeHtml(T('Strokes')) + '</th><th>' + escapeHtml(T('Penalties')) + '</th><th>' + escapeHtml(T('Total')) + '</th></tr></thead>' +
 			'<tbody>' + rows + '</tbody></table>';
 		if (result.challenge) {
-			html += '<p>Challenge ' + escapeHtml(result.challenge.id) + ': <b>' +
-				(result.challenge.status === 'passed' ? 'passed' : 'not met — ' + result.challenge.status.replace('failed:', '').replace(/-/g, ' ')) + '</b></p>';
+			const ch = (PG.content.CHALLENGES || []).find(c => c.id === result.challenge.id);
+			const status = result.challenge.status === 'passed' ? T('passed')
+				: T('not met — {reason}', { reason: T('challenge.' + result.challenge.status.replace('failed:', '')) });
+			html += '<p>' + escapeHtml(T('Challenge {name}:', { name: ch ? T(ch.name) : result.challenge.id })) + ' <b>' + escapeHtml(status) + '</b></p>';
 		}
 		if (opts.unlocked && opts.unlocked.length) {
-			html += '<p>New achievement' + (opts.unlocked.length > 1 ? 's' : '') + ': <b>' + opts.unlocked.map(escapeHtml).join(', ') + '</b></p>';
+			html += '<p>' + escapeHtml(T(opts.unlocked.length > 1 ? 'New achievements:' : 'New achievement:')) + ' <b>' + opts.unlocked.map(escapeHtml).join(', ') + '</b></p>';
 		}
-		if (opts.nextLabel) $('r-next').textContent = opts.nextLabel; else $('r-next').textContent = 'Next';
+		if (opts.nextLabel) $('r-next').textContent = opts.nextLabel; else $('r-next').textContent = T('Next');
 		$('r-next').style.display = opts.showNext === false ? 'none' : '';
 		$('results-body').innerHTML = html;
 	}
@@ -346,10 +363,10 @@
 		$('setup-h').textContent = o.title;
 		let html = '<p>' + escapeHtml(o.desc) + '</p>' +
 			'<ul>' +
-			'<li>Duration: ' + escapeHtml(o.duration) + '</li>' +
-			'<li>Players: ' + escapeHtml(o.players) + '</li>' +
-			'<li>Assists: ' + escapeHtml(o.assists) + '</li>' +
-			'<li>' + (o.ranked ? '<b>Ranked result</b>' : 'Unranked — does not affect rating') + '</li>' +
+			'<li>' + escapeHtml(T('Duration: {v}', { v: o.duration })) + '</li>' +
+			'<li>' + escapeHtml(T('Players: {v}', { v: o.players })) + '</li>' +
+			'<li>' + escapeHtml(T('Assists: {v}', { v: o.assists })) + '</li>' +
+			'<li>' + (o.ranked ? '<b>' + escapeHtml(T('Ranked result')) + '</b>' : escapeHtml(T('Unranked — does not affect rating'))) + '</li>' +
 			(o.extra ? '<li>' + o.extra + '</li>' : '') +
 			'</ul>';
 		if (o.gridHtml) html += o.gridHtml;
@@ -402,15 +419,15 @@
 	function renderControlsHelp(b) {
 		const k = (a) => (b[a] || []).map(keyLabel).join(' / ');
 		renderHelp([
-			{ action: 'Aim', keys: 'Drag from ball, or ' + k('aim_left') + ' / ' + k('aim_right') + ' rotate (hold Shift for fine)' },
-			{ action: 'Power', keys: 'Drag distance, or ' + k('power_up') + ' / ' + k('power_down') + ' (slider)' },
-			{ action: 'Strike', keys: 'Release drag, ' + k('strike') + ', or Strike button' },
-			{ action: 'Cancel aim', keys: k('cancel') + ' or release outside' },
-			{ action: 'Pause', keys: k('pause') + ' or ⏸ button' },
-			{ action: 'Undo (practice)', keys: k('undo') },
-			{ action: 'Hint', keys: k('hint') },
-			{ action: 'Camera reset', keys: k('camera') },
-			{ action: 'Fast-forward roll', keys: k('fast_forward') },
+			{ action: T('Aim'), keys: T('Drag from ball, or {left} / {right} rotate (hold Shift for fine)', { left: k('aim_left'), right: k('aim_right') }) },
+			{ action: T('Power'), keys: T('Drag distance, or {up} / {down} (slider)', { up: k('power_up'), down: k('power_down') }) },
+			{ action: T('Strike'), keys: T('Release drag, {key}, or Strike button', { key: k('strike') }) },
+			{ action: T('Cancel aim'), keys: T('{key} or release outside', { key: k('cancel') }) },
+			{ action: T('Pause'), keys: T('{key} or ⏸ button', { key: k('pause') }) },
+			{ action: T('Undo (practice)'), keys: k('undo') },
+			{ action: T('Hint'), keys: k('hint') },
+			{ action: T('Camera reset'), keys: k('camera') },
+			{ action: T('Fast-forward roll'), keys: k('fast_forward') },
 		]);
 	}
 
@@ -434,7 +451,7 @@
 		init, on, showScreen, openOverlay, closeOverlay, anyOverlayOpen, topOverlay,
 		toast, announce, caption, setHud, setRails, setPower, getPower, setControls,
 		setAccount, setSync, setAccountButtons, renderControlsHelp, escapeHtml,
-		renderSettings, renderGraphics, updateGraphicsSummary, renderSetup, renderResults, applySettingsToDom,
+		renderSettings, relabelSettings, renderGraphics, updateGraphicsSummary, renderSetup, renderResults, applySettingsToDom,
 		get settings() { return ui.settings; },
 		set settings(v) { ui.settings = v; },
 		get progress() { return ui.progress; },

@@ -144,6 +144,14 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
 /* Large screens: ui-scale.js sets --ui-scale (1 up to 1600x1000). Each DOM UI layer zooms by
    it; the course canvas stays unzoomed and simply fills the playfield. */
 #statusbar, .rail, #action-tray, #captions, #toast, .screen, .overlay { zoom: var(--ui-scale, 1); }
+/* Hosted table stopped (terms required / session expired / table unavailable). */
+.online-notice { border: 1px solid var(--danger); border-radius: 8px; padding: 0.5rem 0.6rem; background: var(--panel); }
+.online-notice p { margin: 0 0 0.4rem; }
+.online-notice[hidden] { display: none; }
+/* Shared Report section (game-options.js) on phones: field under its label. */
+@media (max-width: 480px) {
+  #settings-body .game-options-report .game-options-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
 </style>
 <script src="game-options.js" data-game="pocket-greens"></script>
 <script src="ui-scale.js"></script>
@@ -155,39 +163,40 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
 <div id="app">
   <header id="statusbar" role="banner">
     <span id="objective" role="status">Pocket Greens</span>
-    <span class="stat">Hole <b id="stat-hole">–</b></span>
-    <span class="stat">Par <b id="stat-par">–</b></span>
-    <span class="stat">Strokes <b id="stat-strokes">0</b></span>
-    <span class="stat">Total <b id="stat-total">0</b></span>
-    <span class="stat" id="sync-status" title="Cloud save status"></span>
+    <span class="stat"><span data-i18n="Hole">Hole</span> <b id="stat-hole">–</b></span>
+    <span class="stat"><span data-i18n="Par">Par</span> <b id="stat-par">–</b></span>
+    <span class="stat"><span data-i18n="Strokes">Strokes</span> <b id="stat-strokes">0</b></span>
+    <span class="stat"><span data-i18n="Total">Total</span> <b id="stat-total">0</b></span>
+    <span class="stat" id="sync-status" title="Cloud save status" data-i18n-title="Cloud save status"></span>
     <span class="spacer"></span>
-    <button id="btn-pause" aria-label="Pause game" disabled>⏸ Pause</button>
+    <button id="btn-pause" aria-label="Pause game" disabled data-i18n-aria="Pause game" data-i18n="⏸ Pause">⏸ Pause</button>
   </header>
 
   <main id="playfield">
-    <canvas id="game-canvas" aria-label="Miniature golf course view" role="img"></canvas>
+    <canvas id="game-canvas" aria-label="Miniature golf course view" role="img" data-i18n-aria="Miniature golf course view"></canvas>
 
-    <aside id="rail-left" class="rail" aria-label="Objective and progress">
-      <h2>Progress</h2>
-      <div id="rail-progress">Choose a mode to begin.</div>
+    <aside id="rail-left" class="rail" aria-label="Objective and progress" data-i18n-aria="Objective and progress">
+      <h2 data-i18n="Progress">Progress</h2>
+      <div id="rail-progress"><span data-i18n="Choose a mode to begin.">Choose a mode to begin.</span></div>
     </aside>
 
-    <aside id="rail-right" class="rail" aria-label="Actions and status">
-      <h2>Status</h2>
+    <aside id="rail-right" class="rail" aria-label="Actions and status" data-i18n-aria="Actions and status">
+      <h2 data-i18n="Status">Status</h2>
       <div id="rail-status"></div>
-      <button id="btn-help">Help</button>
-      <button id="btn-settings">Settings</button>
+      <div id="online-notice" class="online-notice" role="alert" hidden></div>
+      <button id="btn-help" data-i18n="Help">Help</button>
+      <button id="btn-settings" data-i18n="Settings">Settings</button>
     </aside>
 
-    <div id="action-tray" role="group" aria-label="Stroke controls">
+    <div id="action-tray" role="group" aria-label="Stroke controls" data-i18n-aria="Stroke controls">
       <div id="power-wrap">
-        <label for="power">Power</label>
+        <label for="power" data-i18n="Power">Power</label>
         <input id="power" type="range" min="1" max="100" value="50" />
         <b id="power-val">50</b>
       </div>
-      <button id="btn-strike" class="primary" disabled>Strike</button>
-      <button id="btn-undo" disabled>Undo</button>
-      <button id="btn-hint" disabled>Hint</button>
+      <button id="btn-strike" class="primary" disabled data-i18n="Strike">Strike</button>
+      <button id="btn-undo" disabled data-i18n="Undo">Undo</button>
+      <button id="btn-hint" disabled data-i18n="Hint">Hint</button>
     </div>
 
     <div id="captions" aria-hidden="true"></div>
@@ -200,20 +209,20 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   <section id="screen-title" class="screen open" aria-labelledby="title-h">
     <div class="card">
       <h1 id="title-h">Pocket Greens</h1>
-      <p>A whimsical garden of miniature courses. Aim, set power, and hole out in the fewest strokes.</p>
-      <nav class="menu" aria-label="Main menu">
-        <button id="m-play" class="primary">Play — continue Journey<small>Reach the green in two actions</small></button>
-        <button id="m-learn">Learn<small>Interactive lessons, one rule at a time</small></button>
-        <button id="m-journey">Journey<small>44 authored and seeded stages</small></button>
-        <button id="m-daily">Daily Challenge<small>One shared course per UTC day</small></button>
-        <button id="m-practice">Practice<small>Any hole, undo allowed, unranked</small></button>
-        <button id="m-challenge">Challenges<small>Constrained goals for mastery</small></button>
-        <button id="m-settings">Settings</button>
-        <button id="m-hosted" hidden>Hosted Play<small>Private match against a friend or AI</small></button>
+      <p data-i18n="A whimsical garden of miniature courses. Aim, set power, and hole out in the fewest strokes.">A whimsical garden of miniature courses. Aim, set power, and hole out in the fewest strokes.</p>
+      <nav class="menu" aria-label="Main menu" data-i18n-aria="Main menu">
+        <button id="m-play" class="primary"><span data-i18n="Play — continue Journey">Play — continue Journey</span><small data-i18n="Reach the green in two actions">Reach the green in two actions</small></button>
+        <button id="m-learn"><span data-i18n="Learn">Learn</span><small data-i18n="Interactive lessons, one rule at a time">Interactive lessons, one rule at a time</small></button>
+        <button id="m-journey"><span data-i18n="Journey">Journey</span><small data-i18n="44 authored and seeded stages">44 authored and seeded stages</small></button>
+        <button id="m-daily"><span data-i18n="Daily Challenge">Daily Challenge</span><small data-i18n="One shared course per UTC day">One shared course per UTC day</small></button>
+        <button id="m-practice"><span data-i18n="Practice">Practice</span><small data-i18n="Any hole, undo allowed, unranked">Any hole, undo allowed, unranked</small></button>
+        <button id="m-challenge"><span data-i18n="Challenges">Challenges</span><small data-i18n="Constrained goals for mastery">Constrained goals for mastery</small></button>
+        <button id="m-settings" data-i18n="Settings">Settings</button>
+        <button id="m-hosted" hidden><span data-i18n="Hosted Play">Hosted Play</span><small data-i18n="Private match against a friend or AI">Private match against a friend or AI</small></button>
       </nav>
       <p class="stat" id="title-progress"></p>
       <p class="stat" id="title-account"></p>
-      <div class="menu" aria-label="StarHermit account">
+      <div class="menu" aria-label="StarHermit account" data-i18n-aria="StarHermit account">
         <button id="m-invite" hidden>Invite a friend</button>
         <button id="m-signin" hidden>Sign in with StarHermit</button>
       </div>
@@ -226,8 +235,8 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
       <h2 id="setup-h">Setup</h2>
       <div id="setup-body"></div>
       <div class="menu" style="margin-top:1rem">
-        <button id="setup-start" class="primary">Start</button>
-        <button id="setup-back">Back</button>
+        <button id="setup-start" class="primary" data-i18n="Start">Start</button>
+        <button id="setup-back" data-i18n="Back">Back</button>
       </div>
     </div>
   </section>
@@ -235,10 +244,10 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   <!-- Hosted lobby -->
   <section id="screen-lobby" class="screen" aria-labelledby="lobby-h">
     <div class="card">
-      <h2 id="lobby-h">Hosted Match</h2>
+      <h2 id="lobby-h" data-i18n="Hosted Match">Hosted Match</h2>
       <div id="lobby-body"></div>
       <div class="menu" style="margin-top:1rem">
-        <button id="lobby-back">Leave lobby</button>
+        <button id="lobby-back" data-i18n="Leave lobby">Leave lobby</button>
       </div>
     </div>
   </section>
@@ -246,13 +255,13 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   <!-- Pause -->
   <div id="overlay-pause" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pause-h">
     <div class="card">
-      <h2 id="pause-h">Paused</h2>
+      <h2 id="pause-h" data-i18n="Paused">Paused</h2>
       <div class="menu">
-        <button id="p-resume" class="primary">Resume</button>
-        <button id="p-settings">Settings</button>
-        <button id="p-help">Help</button>
-        <button id="p-restart">Restart hole</button>
-        <button id="p-leave" class="danger">Leave round</button>
+        <button id="p-resume" class="primary" data-i18n="Resume">Resume</button>
+        <button id="p-settings" data-i18n="Settings">Settings</button>
+        <button id="p-help" data-i18n="Help">Help</button>
+        <button id="p-restart" data-i18n="Restart hole">Restart hole</button>
+        <button id="p-leave" class="danger" data-i18n="Leave round">Leave round</button>
       </div>
     </div>
   </div>
@@ -260,31 +269,31 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   <!-- Settings -->
   <div id="overlay-settings" class="overlay" role="dialog" aria-modal="true" aria-labelledby="settings-h">
     <div class="card">
-      <h2 id="settings-h">Settings</h2>
+      <h2 id="settings-h" data-i18n="Settings">Settings</h2>
       <div id="settings-body"></div>
-      <div class="menu" style="margin-top:1rem"><button id="settings-close" class="primary">Done</button></div>
+      <div class="menu" style="margin-top:1rem"><button id="settings-close" class="primary" data-i18n="Done">Done</button></div>
     </div>
   </div>
 
   <!-- Help -->
   <div id="overlay-help" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-h">
     <div class="card">
-      <h2 id="help-h">How to play</h2>
+      <h2 id="help-h" data-i18n="How to play">How to play</h2>
       <div id="help-body"></div>
-      <div class="menu" style="margin-top:1rem"><button id="help-close" class="primary">Close</button></div>
+      <div class="menu" style="margin-top:1rem"><button id="help-close" class="primary" data-i18n="Close">Close</button></div>
     </div>
   </div>
 
   <!-- Results -->
   <div id="overlay-results" class="overlay" role="dialog" aria-modal="true" aria-labelledby="results-h">
     <div class="card">
-      <h2 id="results-h">Results</h2>
+      <h2 id="results-h" data-i18n="Results">Results</h2>
       <div id="results-body"></div>
       <p id="results-lb" role="status" hidden></p>
       <div class="menu" style="margin-top:1rem">
         <button id="r-next" class="primary">Next</button>
-        <button id="r-retry">Retry</button>
-        <button id="r-menu">Main menu</button>
+        <button id="r-retry" data-i18n="Retry">Retry</button>
+        <button id="r-menu" data-i18n="Main menu">Main menu</button>
       </div>
     </div>
   </div>
@@ -292,8 +301,8 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   <!-- WebGL failure -->
   <div id="overlay-compat" class="overlay" role="alertdialog" aria-labelledby="compat-h">
     <div class="card">
-      <h2 id="compat-h">3D unavailable</h2>
-      <p>Your browser could not start WebGL. Your progress and settings are safe. Try updating your browser or enabling hardware acceleration, then reload.</p>
+      <h2 id="compat-h" data-i18n="3D unavailable">3D unavailable</h2>
+      <p data-i18n="Your browser could not start WebGL. Your progress and settings are safe. Try updating your browser or enabling hardware acceleration, then reload.">Your browser could not start WebGL. Your progress and settings are safe. Try updating your browser or enabling hardware acceleration, then reload.</p>
     </div>
   </div>
 </div>
@@ -323,6 +332,9 @@ body.high-contrast #screen-title { background: color-mix(in srgb, var(--bg) 92%,
   ]).then((mods) => { window.PG_ADDONS = Object.assign({}, ...mods); })
     .catch(() => { window.PG_ADDONS_FAILED = true; });
 </script>
+<script src="./sh-language.js"></script>
+<script src="./strings.js"></script>
+<script src="./i18n.js"></script>
 <script src="./rules.js"></script>
 <script src="./content.js"></script>
 <script src="./session.js"></script>

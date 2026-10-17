@@ -12,15 +12,29 @@ const TOKEN = 'h.' + b64u({ sub: 'user-55cc66dd', game_scope: 'pg-slug', exp: Ma
 function install(href) {
 	const calls = [];
 	const saves = {};
-	const kv = { audio: { music: 0.2 } };
+	const etags = {};
+	let version = 0;
+	const kv = { audio: { music: 0.2 }, 'ui.language': { choice: 'pt-BR' } };
 	const fetch = async (url, init = {}) => {
 		calls.push({ url, method: init.method || 'GET', init });
 		const r = (status, body) => new Response(body, { status });
 		const j = (o) => r(200, JSON.stringify(o));
 		if (url === '/api/v1/users/user-55cc66dd/profile') return j({ username: 'hidden', nickname: 'Putter' });
 		if (url.includes('/cloud-saves/')) {
-			const key = decodeURIComponent(url.split('/cloud-saves/')[1]);
-			if (init.method === 'PUT') { saves[key] = Buffer.from(JSON.parse(init.body).dataBase64, 'base64'); return j({}); }
+			// Versioned slot like the platform: /info carries the ETag, a PUT must
+			// match it (If-Match) or target an empty slot (If-None-Match: *), else 412.
+			const rest = decodeURIComponent(url.split('/cloud-saves/')[1]);
+			const key = rest.replace(/\/info$/, '');
+			if (rest.endsWith('/info')) return j(saves[key] ? { exists: true, etag: etags[key] } : { exists: false });
+			if (init.method === 'PUT') {
+				const hd = init.headers || {};
+				if ((hd['If-Match'] && hd['If-Match'] !== etags[key]) || (hd['If-None-Match'] === '*' && saves[key])) {
+					return r(412, JSON.stringify({ error: 'precondition failed', etag: etags[key] }));
+				}
+				saves[key] = Buffer.from(JSON.parse(init.body).dataBase64, 'base64');
+				etags[key] = '"v' + (++version) + '"';
+				return j({ etag: etags[key] });
+			}
 			return saves[key] ? r(200, saves[key]) : r(404, '');
 		}
 		if (url.endsWith('/settings') && init.method === 'PATCH') { Object.assign(kv, JSON.parse(init.body).settings); return j({}); }
@@ -36,7 +50,7 @@ function install(href) {
 	delete require.cache[require.resolve(file)];
 	const platform = require(file);
 	platform.initAuth();
-	return { platform, calls, saves, kv };
+	return { platform, calls, saves, kv, fetch, loc };
 }
 
 test('hosted: token, nickname, cloud save game:<slug>, settings, bindings', async () => {
@@ -65,6 +79,7 @@ test('hosted: token, nickname, cloud save game:<slug>, settings, bindings', asyn
 	const merged = await P.loadRemoteSettings(JSON.parse(JSON.stringify(P.DEFAULT_SETTINGS)));
 	assert.equal(merged.audio.music, 0.2);
 	assert.equal(merged.audio.effects, P.DEFAULT_SETTINGS.audio.effects);
+	assert.equal(merged['ui.language'], undefined, 'ui.* keys belong to the platform, not game settings');
 	merged.controls.leftHanded = true;
 	await P.syncSettings(merged);
 	const patches = calls.filter((c) => c.method === 'PATCH').map((c) => JSON.parse(c.init.body).settings);
@@ -94,4 +109,36 @@ test('standalone: no request at all (even on localhost)', async () => {
 	assert.equal((await P.api('/api/v1/sessions', { method: 'POST', body: {} })).ok, false);
 	assert.ok(Math.abs(P.now() - Date.now()) < 50);
 	assert.equal(calls.length, 0);
+});
+
+test('hosted: a save that lost to another device reloads, merges and saves on top', async () => {
+	const h = install('https://pg-slug.starhermit.com/#game_token=' + TOKEN);
+	const P = h.platform;
+	const RULES = require('../rules');
+	const sum = (d) => RULES.hashStr(RULES.stableStringify({ v: d.version, journey: d.journey, achievements: d.achievements, mastery: d.mastery }));
+	assert.deepEqual(await P.loadAdoptedProgress({ local: true }), { local: true }); // empty slot -> If-None-Match: *
+	const other = SDK.create({ window: { location: h.loc, history: { replaceState() {} } }, fetch: h.fetch, setTimeout: () => 0, clearTimeout: () => {} });
+	other.init();
+	const remote = JSON.parse(JSON.stringify(P.DEFAULT_PROGRESS));
+	remote.journey = { unlocked: 5, stars: { j01: 2, j02: 4 } };
+	remote.achievements = { 'first-cup': 100 };
+	remote.mastery.holesCompleted = 9;
+	remote.checksum = sum(remote);
+	assert.equal(await other.writeSave(JSON.stringify(remote)), true);
+
+	const merged = new Promise((resolve) => { P.onProgressMerged = resolve; });
+	const mine = JSON.parse(JSON.stringify(P.DEFAULT_PROGRESS));
+	mine.journey = { unlocked: 2, stars: { j01: 1 } };
+	mine.checksum = sum(mine);
+	P.queueCloudSave(mine);
+	assert.equal(await P.flushCloudSave(), false, 'the stale write is refused');
+	const doc = await merged;
+	assert.equal(doc.journey.unlocked, 5);
+	assert.equal(doc.achievements['first-cup'], 100);
+	assert.equal(doc.mastery.holesCompleted, 9);
+	assert.equal(await P.flushCloudSave(), true, 'the merged copy saves on top');
+	assert.equal((await other.loadJSON()).journey.unlocked, 5, 'cloud now holds the merged doc');
+
+	const m = P.mergeProgress(remote, mine);
+	assert.deepEqual(m.journey.stars, { j01: 1, j02: 4 }, 'per-stage best strokes keep the lower count');
 });

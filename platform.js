@@ -37,6 +37,20 @@ function initAuth() {
 		if (!ok) lastSavedJson = ''; // retry the same doc on the next checkpoint
 		setSync(ok ? 'synced' : (state.online === false ? 'offline' : 'error'));
 	});
+	// A conditional cloud write lost to another device: reload the newer doc
+	// (lifting the SDK's write block), merge it with this device's progress
+	// (best of both) and save the merged copy.
+	sh.on('saveconflict', async () => {
+		let remote = null;
+		try { remote = await sh.loadJSON(); } catch (e) { remote = null; }
+		const local = loadProgress();
+		const merged = validRemote(remote) ? mergeProgress(remote, local) : local;
+		lastSavedJson = '';
+		saveProgress(merged);
+		if (platformApi.onProgressMerged) platformApi.onProgressMerged(merged);
+	});
+	// Renewal (background refresh or a reconnect check) hit pending terms consent.
+	sh.on('termsrequired', (body) => { if (platformApi.onTermsRequired) platformApi.onTermsRequired(body); });
 	sh.on('auth', (a) => {
 		if (!a.signedIn) { state.nickname = null; setSync('offline'); }
 		if (platformApi.onAuth) platformApi.onAuth({ signedIn: !!a.signedIn });
@@ -64,7 +78,7 @@ async function api(path, opts) {
 		const data = await sdk().api(path, { method: opts.method || 'GET', body: opts.body, keepalive: opts.keepalive });
 		return { ok: true, data: data == null ? null : data };
 	} catch (e) {
-		return { ok: false, status: e && e.status || 0, error: (e && e.message) || 'error', offline: !(e && e.status) };
+		return { ok: false, status: e && e.status || 0, error: (e && e.message) || 'error', body: e && e.body, offline: !(e && e.status) };
 	}
 }
 
@@ -117,6 +131,7 @@ async function loadRemoteSettings(local) {
 	settingsLoaded = true;
 	const out = JSON.parse(JSON.stringify(local));
 	for (const [k, v] of Object.entries(remote)) {
+		if (k.startsWith('ui.')) continue; // platform-owned keys (ui.language) are not game settings
 		sentSettings[k] = JSON.stringify(v);
 		if (k in DEFAULT_SETTINGS && v && typeof v === 'object') out[k] = Object.assign({}, out[k], v);
 	}
@@ -132,8 +147,8 @@ function loadBindings(defaults) {
 	return sdk().loadBindings(defaults).catch(copy);
 }
 
-// Cloud-save progression: versioned, checksummed document. Conflicts preserve both
-// snapshots; the caller asks the player when neither is a strict descendant.
+// Cloud-save progression: versioned, checksummed document. A copy from another
+// device is merged with this one (mergeProgress) — never dropped.
 function checksum(doc) {
 	const RULES = (typeof module !== 'undefined' && module.exports) ? require('./rules') : window.PG.rules;
 	return RULES.hashStr(RULES.stableStringify({ v: doc.version, journey: doc.journey, achievements: doc.achievements, mastery: doc.mastery }));
@@ -188,16 +203,52 @@ function flushCloudSave() {
 	return sdk().flushSave(true);
 }
 
-// Boot-time merge: a valid remote document wins over the local cache (the platform
-// copy is authoritative for the account); localStorage stays the offline cache.
+function validRemote(doc) {
+	return !!(doc && doc.version === DEFAULT_PROGRESS.version && doc.checksum === checksum(doc));
+}
+
+// Progress merge (boot load and `saveconflict`): neither side's progress is
+// dropped. Journey unlocks take the further point, per-stage best strokes the
+// lower count, achievements the earliest unlock, lifetime counters the larger
+// value, best daily the lower total; the under-par streak is this device's.
+function mergeProgress(remote, local) {
+	const r = remote || {}, l = local || {};
+	const obj = (v) => (v && typeof v === 'object' ? v : {});
+	const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+	const stars = Object.assign({}, obj(obj(r.journey).stars));
+	for (const [k, v] of Object.entries(obj(obj(l.journey).stars))) stars[k] = stars[k] ? Math.min(stars[k], v) : v;
+	const achievements = Object.assign({}, obj(r.achievements));
+	for (const [k, v] of Object.entries(obj(l.achievements))) achievements[k] = achievements[k] ? Math.min(achievements[k], v) : v;
+	const rm = obj(r.mastery), lm = obj(l.mastery);
+	const dailies = [rm.bestDaily, lm.bestDaily].filter(x => typeof x === 'number');
+	return {
+		version: DEFAULT_PROGRESS.version,
+		journey: { unlocked: Math.max(num(obj(r.journey).unlocked), num(obj(l.journey).unlocked), 1), stars },
+		achievements,
+		mastery: {
+			holesCompleted: Math.max(num(rm.holesCompleted), num(lm.holesCompleted)),
+			noPenaltyHoles: Math.max(num(rm.noPenaltyHoles), num(lm.noPenaltyHoles)),
+			bestDaily: dailies.length ? Math.min.apply(null, dailies) : null,
+			underParStreak: num(lm.underParStreak),
+		},
+	};
+}
+
+// Boot-time merge: a valid remote document is merged with the local cache (best
+// of both, see mergeProgress) and the merged copy is saved back; localStorage
+// stays the offline cache. loadJSON makes later cloud writes conditional.
 async function loadAdoptedProgress(localProgress) {
 	if (!hosted()) return localProgress;
 	const remote = await sdk().loadJSON();
-	if (remote && remote.version === DEFAULT_PROGRESS.version && remote.checksum === checksum(remote)) {
-		saveLocal(PROGRESS_KEY, remote);
-		lastSavedJson = JSON.stringify(remote);
-		setSync('synced');
-		return remote;
+	if (validRemote(remote)) {
+		const merged = mergeProgress(remote, localProgress);
+		merged.checksum = checksum(merged);
+		if (merged.checksum === remote.checksum) {
+			saveLocal(PROGRESS_KEY, merged);
+			lastSavedJson = JSON.stringify(merged);
+			setSync('synced');
+		} else saveProgress(merged);
+		return merged;
 	}
 	return localProgress;
 }
@@ -272,10 +323,10 @@ async function postVsPar(vsPar) {
 const platformApi = {
 	now, api, state, initAuth,
 	loadSettings, saveSettings, loadProgress, saveProgress, syncSettings, loadRemoteSettings, loadBindings,
-	loadAdoptedProgress, queueCloudSave, flushCloudSave,
+	loadAdoptedProgress, mergeProgress, queueCloudSave, flushCloudSave,
 	nicknameFor, refreshIdentity, canSignIn, signIn, inviteLink, postVsPar,
 	ACHIEVEMENTS, unlockAchievement, recordHoleStreak, DEFAULT_SETTINGS, DEFAULT_PROGRESS,
-	onIdentity: null, onSync: null, onAuth: null,
+	onIdentity: null, onSync: null, onAuth: null, onProgressMerged: null, onTermsRequired: null,
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = platformApi;

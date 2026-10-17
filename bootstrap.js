@@ -9,6 +9,12 @@
 	const PG = window.PG;
 	const RULES = PG.rules, CONTENT = PG.content, SESSION = PG.session;
 	const AUDIO = PG.audio, PLATFORM = PG.platform, RENDER = PG.render, UI = PG.ui, NET = PG.net;
+	const I18N = PG.i18n;
+	const T = I18N.t;
+	// StarHermit account strings in the game language (read at use time).
+	const PS = () => PG.platformI18n.platformStrings(PG.platformI18n.pickPlatformLocale(I18N.locale));
+	// Rules rejection codes as player-facing text.
+	const reasonText = (code) => T('reason.' + code) !== 'reason.' + code ? T('reason.' + code) : String(code || '');
 
 	const G = {
 		machine: 'boot',
@@ -59,7 +65,7 @@
 
 	// Hosted names come from the account profile; resolve asynchronously and refresh.
 	const nickCache = {};
-	function nickFor(id) { return nickCache[id] || 'Player ' + String(id).slice(0, 8); }
+	function nickFor(id) { return nickCache[id] || T('Player {id}', { id: String(id).slice(0, 8) }); }
 	function primeNick(id) {
 		if (!PLATFORM.state.hosted || !id || nickCache[id]) return;
 		PLATFORM.nicknameFor(id).then(name => {
@@ -69,8 +75,8 @@
 		}).catch(() => {});
 	}
 	function playerLabel(id) {
-		if (isOpponent(id)) return (G.hosted && G.hosted.rooms) ? nickFor(id) : (G.hosted ? id : 'AI');
-		return 'You';
+		if (isOpponent(id)) return (G.hosted && G.hosted.rooms) ? nickFor(id) : (G.hosted ? id : T('AI'));
+		return T('You');
 	}
 
 	// ---------- HUD refresh ----------
@@ -83,10 +89,10 @@
 		const me = st.players[st.currentPlayer];
 		const t = sess.totals[me.id] || { strokes: 0, penalties: 0, holes: 0 };
 		const objective = G.learn
-			? CONTENT.TUTORIALS.find(x => x.id === G.learn.tutorialId).title + ' — ' + G.learn.stepText
-			: st.terminal ? 'Round complete'
-			: st.phase === 'aim' ? (isOpponent(me.id) ? 'Opponent is aiming…' : 'Aim and strike')
-			: 'Ball rolling…';
+			? T(CONTENT.TUTORIALS.find(x => x.id === G.learn.tutorialId).title) + ' — ' + T(G.learn.stepText)
+			: st.terminal ? T('Round complete')
+			: st.phase === 'aim' ? (isOpponent(me.id) ? T('Opponent is aiming…') : T('Aim and strike'))
+			: T('Ball rolling…');
 		UI.setHud({
 			objective,
 			hole: (sess.holeIndex + 1) + '/' + sess.holes.length,
@@ -97,13 +103,13 @@
 		});
 		const rows = Object.keys(sess.totals).map(id => {
 			const tt = sess.totals[id];
-			return '<p>' + playerLabel(id) + ': <b>' + (tt.strokes + tt.penalties) + '</b> over ' + tt.holes + ' hole(s)</p>';
+			return '<p>' + T('{player}: <b>{n}</b> over {holes} hole(s)', { player: UI.escapeHtml(playerLabel(id)), n: tt.strokes + tt.penalties, holes: tt.holes }) + '</p>';
 		}).join('');
 		UI.setRails(
-			'<p>' + modeLabel() + '</p><p>Seed: <code>' + sess.seed + '</code></p>' + rows,
+			'<p>' + modeLabel() + '</p><p>' + T('Seed: {seed}', { seed: '<code>' + UI.escapeHtml(sess.seed) + '</code>' }) + '</p>' + rows,
 			st.phase === 'aim' && !isOpponent(me.id)
-				? '<p>Drag back from the ball or use arrow keys. Power ' + Math.round(G.aim.power) + '%.</p>'
-				: '<p>' + (isOpponent(me.id) ? 'Opponent turn' : 'Resolving…') + '</p>');
+				? '<p>' + T('Drag back from the ball or use arrow keys. Power {n}%.', { n: Math.round(G.aim.power) }) + '</p>'
+				: '<p>' + (isOpponent(me.id) ? T('Opponent turn') : T('Resolving…')) + '</p>');
 		const canAct = st.phase === 'aim' && !isOpponent(me.id) && !st.terminal;
 		UI.setControls({
 			canStrike: canAct,
@@ -114,7 +120,7 @@
 
 	function modeLabel() {
 		const m = { learn: 'Learn', journey: 'Journey', daily: 'Daily Challenge', practice: 'Practice', challenge: 'Challenge', hosted: 'Hosted match' };
-		return m[G.mode] || G.mode;
+		return m[G.mode] ? T(m[G.mode]) : G.mode;
 	}
 
 	// ---------- round lifecycle ----------
@@ -142,7 +148,8 @@
 		transition('countdown', 'round-ready');
 		G.countdown = 2;
 		UI.showScreen(null);
-		UI.toast(holes[0].tutorial ? 'Lesson: ' + holes[0].tutorial : modeLabel() + ' — hole 1');
+		const tut = holes[0].tutorial && CONTENT.TUTORIALS.find(x => x.id === holes[0].tutorial);
+		UI.toast(tut ? T('Lesson: {title}', { title: T(tut.title) }) : T('{mode} — hole {n}', { mode: modeLabel(), n: 1 }));
 		G.countdownTimer = setTimeout(() => {
 			// a pause taken during the countdown must survive it
 			if (!G.session || G.machine !== 'countdown') return;
@@ -194,7 +201,7 @@
 		const sess = G.session;
 		if (res.error) {
 			AUDIO.event({ type: 'invalid', reason: res.error });
-			UI.announce('Invalid action: ' + res.error, true);
+			UI.announce(T('Invalid action: {reason}', { reason: reasonText(res.error) }), true);
 			transition('active', 'invalid-command');
 			refreshHud();
 			return;
@@ -224,7 +231,7 @@
 
 	function holeSummaryText(e) {
 		const parts = Object.keys(e.totals).map(id => playerLabel(id) + ' ' + (e.totals[id].strokes + e.totals[id].penalties));
-		return 'Hole finished. ' + parts.join(', ') + '.';
+		return T('Hole finished. {scores}.', { scores: parts.join(', ') });
 	}
 
 	function onNextHole(course) {
@@ -232,7 +239,7 @@
 		RENDER.loadCourse(course, theme);
 		AUDIO.stopAmbience();
 		AUDIO.startAmbience(theme.ambience);
-		UI.toast('Hole ' + (G.session.holeIndex + 1) + ' — par ' + course.par);
+		UI.toast(T('Hole {n} — par {par}', { n: G.session.holeIndex + 1, par: course.par }));
 	}
 
 	function afterTurn() {
@@ -281,7 +288,7 @@
 				perHole: sess.holes.map(h => ({ id: h.id, par: h.par })),
 			};
 		}
-		if (!sess.result || !sess.result.results.length) { UI.toast('Round ended unexpectedly'); leave(); return; }
+		if (!sess.result || !sess.result.results.length) { UI.toast(T('Round ended unexpectedly')); leave(); return; }
 		if (G.hosted && G.hosted.rooms && G.hosted.isHost) {
 			// the host reports the authoritative outcome; guests see the same terminal state
 			G.hosted.client.rest(sess.result).catch(() => {});
@@ -293,15 +300,25 @@
 		const headline = G.mode === 'challenge' && r.challenge
 			? (r.challenge.status === 'passed' ? 'Challenge passed' : 'Challenge not met')
 			: (mine.total <= parTotal ? 'Under or at par — nicely played' : 'Round complete');
-		UI.renderResults(r, {
-			headline: headline + ' — ' + mine.total + ' vs par ' + parTotal,
-			unlocked,
+		G.lastResults = { r, headline, total: mine.total, parTotal, unlocked };
+		renderResultsOverlay();
+		UI.openOverlay('overlay-results');
+		UI.announce(T('{headline}. Total {total}.', { headline: T(headline), total: mine.total }), true);
+		postVsPar(mine, parTotal);
+	}
+
+	// Results texts in the current language (also re-run on a language change).
+	function renderResultsOverlay() {
+		const lr = G.lastResults;
+		if (!lr) return;
+		UI.renderResults(lr.r, {
+			headline: T('{headline} — {total} vs par {par}', { headline: T(lr.headline), total: lr.total, par: lr.parTotal }),
+			unlocked: lr.unlocked.map(n => T(n)),
 			nextLabel: nextAction().label,
 			showNext: !!nextAction().label,
+			playerLabel,
 		});
-		UI.openOverlay('overlay-results');
-		UI.announce(headline + '. Total ' + mine.total + '.', true);
-		postVsPar(mine, parTotal);
+		refreshVsParLine();
 	}
 
 	// Signed in, every finished solo round (Journey, Daily, Practice, Challenge —
@@ -310,13 +327,24 @@
 	function postVsPar(mine, parTotal) {
 		const line = document.getElementById('results-lb');
 		if (!line) return;
-		if (!PLATFORM.state.hosted || G.mode === 'learn' || G.mode === 'hosted' || !(mine.holes > 0)) { line.hidden = true; return; }
-		const T = window.PG.platformI18n.currentPlatformStrings();
-		line.hidden = false;
-		line.textContent = T.lbPosting;
+		if (!PLATFORM.state.hosted || G.mode === 'learn' || G.mode === 'hosted' || !(mine.holes > 0)) { line.hidden = true; G.vsPar = null; return; }
+		const lb = G.vsPar = { state: 'posting' };
+		refreshVsParLine();
 		PLATFORM.postVsPar(mine.total - parTotal).then(r => {
-			line.textContent = !r.posted ? T.lbNotPosted : r.rank ? T.lbRank.replace('{rank}', r.rank) : T.lbPosted;
+			lb.state = !r.posted ? 'notPosted' : r.rank ? 'rank' : 'posted';
+			lb.rank = r.rank;
+			if (G.vsPar === lb) refreshVsParLine();
 		});
+	}
+
+	function refreshVsParLine() {
+		const line = document.getElementById('results-lb');
+		const lb = G.vsPar;
+		if (!line || !lb || line.hidden && lb.state !== 'posting' && !line.textContent) return;
+		const s = PS();
+		line.hidden = false;
+		line.textContent = lb.state === 'posting' ? s.lbPosting : lb.state === 'notPosted' ? s.lbNotPosted
+			: lb.state === 'rank' ? s.lbRank.replace('{rank}', lb.rank) : s.lbPosted;
 	}
 
 	function awardProgress(sess) {
@@ -355,12 +383,12 @@
 	function nextAction() {
 		if (G.mode === 'journey' && G.session) {
 			const idx = CONTENT.JOURNEY.indexOf(G.session.holes[0]);
-			if (idx >= 0 && idx + 1 < CONTENT.JOURNEY.length) return { label: 'Next stage', run: () => openSetup('journey', idx + 1) };
+			if (idx >= 0 && idx + 1 < CONTENT.JOURNEY.length) return { label: T('Next stage'), run: () => openSetup('journey', idx + 1) };
 		}
 		if (G.mode === 'learn' && G.learn) {
 			const ti = CONTENT.TUTORIALS.findIndex(t => t.id === G.learn.tutorialId);
 			const next = CONTENT.TUTORIALS[ti + 1];
-			if (next) return { label: 'Next lesson', run: () => startLearn(next.id) };
+			if (next) return { label: T('Next lesson'), run: () => startLearn(next.id) };
 		}
 		return { label: null, run: null };
 	}
@@ -373,7 +401,7 @@
 		startRound('learn', [hole], { seed: 'learn-' + tutorialId });
 		const tut = CONTENT.TUTORIALS.find(t => t.id === tutorialId);
 		G.learn.stepText = tut.steps[0].text;
-		UI.announce(tut.title + '. ' + tut.steps[0].text, false);
+		UI.announce(T(tut.title) + '. ' + T(tut.steps[0].text), false);
 		setTimeout(refreshHud, 100);
 	}
 
@@ -388,8 +416,8 @@
 		if (hit && G.learn.step + 1 < tut.steps.length) {
 			G.learn.step += 1;
 			G.learn.stepText = tut.steps[G.learn.step].text;
-			UI.toast(tut.steps[G.learn.step].text);
-			UI.announce(tut.steps[G.learn.step].text, false);
+			UI.toast(T(tut.steps[G.learn.step].text));
+			UI.announce(T(tut.steps[G.learn.step].text), false);
 		}
 	}
 
@@ -410,48 +438,48 @@
 				const locked = i >= unlocked;
 				const best = G.progress.journey.stars[c.id];
 				return '<option value="' + i + '"' + (locked ? ' disabled' : '') + (i === idx ? ' selected' : '') + '>' +
-					(i + 1) + '. par ' + c.par + (best ? ' ★' + best : '') + (locked ? ' — locked' : '') + '</option>';
+					(i + 1) + '. ' + T('par {par}', { par: c.par }) + (best ? ' ★' + best : '') + (locked ? ' — ' + T('locked') : '') + '</option>';
 			}).join('');
 			UI.renderSetup({
-				title: 'Journey', desc: '44 stages that introduce one concept at a time, then combine them. Mastery stages every chapter.',
-				duration: '~2 minutes per stage', players: '1', assists: 'Hints available', ranked: false,
-				extra: 'Unlocked: ' + unlocked + ' / ' + CONTENT.JOURNEY.length,
-				gridHtml: '<div class="setting-row"><label for="setup-stage">Stage</label>' +
-					'<select id="setup-stage" aria-label="Stages">' + options + '</select></div>',
+				title: T('Journey'), desc: T('44 stages that introduce one concept at a time, then combine them. Mastery stages every chapter.'),
+				duration: T('~2 minutes per stage'), players: '1', assists: T('Hints available'), ranked: false,
+				extra: T('Unlocked: {n} / {total}', { n: unlocked, total: CONTENT.JOURNEY.length }),
+				gridHtml: '<div class="setting-row"><label for="setup-stage">' + T('Stage') + '</label>' +
+					'<select id="setup-stage" aria-label="' + UI.escapeHtml(T('Stages')) + '">' + options + '</select></div>',
 			});
 			const stageSel = document.getElementById('setup-stage');
 			stageSel.addEventListener('change', () => {
 				setupCtx.index = Number(stageSel.value);
-				UI.toast('Stage ' + (setupCtx.index + 1) + ' selected');
+				UI.toast(T('Stage {n} selected', { n: setupCtx.index + 1 }));
 			});
 		} else if (mode === 'daily') {
 			UI.renderSetup({
-				title: 'Daily Challenge', desc: 'One shared seed and ruleset per UTC day. Everyone plays the same green.',
-				duration: '~2 minutes', players: '1',
-				assists: PLATFORM.state.hosted ? 'No undo • best recorded to your account' : 'No undo',
+				title: T('Daily Challenge'), desc: T('One shared seed and ruleset per UTC day. Everyone plays the same green.'),
+				duration: T('~2 minutes'), players: '1',
+				assists: PLATFORM.state.hosted ? T('No undo • best recorded to your account') : T('No undo'),
 				ranked: false,
-				extra: 'Seed: ' + CONTENT.dailySeed() + ' (local clock)' +
-					(PLATFORM.state.hosted ? ' • Platform boards are read-only' : ''),
+				extra: UI.escapeHtml(T('Seed: {seed} (local clock)', { seed: CONTENT.dailySeed() }) +
+					(PLATFORM.state.hosted ? ' • ' + T('Platform boards are read-only') : '')),
 			});
 		} else if (mode === 'practice') {
 			const grid = CONTENT.AUTHORED.map((c, i) =>
-				'<button data-idx="' + i + '">' + c.id + ' par ' + c.par + '</button>').join('');
+				'<button data-idx="' + i + '">' + c.id + ' ' + T('par {par}', { par: c.par }) + '</button>').join('');
 			UI.renderSetup({
-				title: 'Practice', desc: 'Any hole, restart and undo freely, deterministic AI opponent optional. Never affects rating.',
-				duration: 'As long as you like', players: '1 (AI optional)', assists: 'Undo + hints', ranked: false,
-				gridHtml: '<div class="setting-row"><label>AI opponent</label><input type="checkbox" id="setup-ai"></div>' +
-					'<div class="grid" role="group" aria-label="Practice holes">' + grid + '</div>',
+				title: T('Practice'), desc: T('Any hole, restart and undo freely, deterministic AI opponent optional. Never affects rating.'),
+				duration: T('As long as you like'), players: T('1 (AI optional)'), assists: T('Undo + hints'), ranked: false,
+				gridHtml: '<div class="setting-row"><label for="setup-ai">' + T('AI opponent') + '</label><input type="checkbox" id="setup-ai"></div>' +
+					'<div class="grid" role="group" aria-label="' + UI.escapeHtml(T('Practice holes')) + '">' + grid + '</div>',
 			});
 			setupCtx.index = 0;
 			document.querySelectorAll('#setup-body [data-idx]').forEach(b =>
 				b.addEventListener('click', () => { setupCtx.index = Number(b.dataset.idx); }));
 		} else if (mode === 'challenge') {
 			const grid = CONTENT.CHALLENGES.map((ch, i) =>
-				'<button data-idx="' + i + '"><b>' + ch.name + '</b><br><small>' + ch.desc + '</small></button>').join('');
+				'<button data-idx="' + i + '"><b>' + UI.escapeHtml(T(ch.name)) + '</b><br><small>' + UI.escapeHtml(T(ch.desc)) + '</small></button>').join('');
 			UI.renderSetup({
-				title: 'Challenges', desc: 'Constrained goals: move limits, speed targets, restricted power.',
-				duration: '~1 minute each', players: '1', assists: 'None', ranked: false,
-				gridHtml: '<div class="grid" role="group" aria-label="Challenges">' + grid + '</div>',
+				title: T('Challenges'), desc: T('Constrained goals: move limits, speed targets, restricted power.'),
+				duration: T('~1 minute each'), players: '1', assists: T('None'), ranked: false,
+				gridHtml: '<div class="grid" role="group" aria-label="' + UI.escapeHtml(T('Challenges')) + '">' + grid + '</div>',
 			});
 			setupCtx.index = 0;
 			document.querySelectorAll('#setup-body [data-idx]').forEach(b =>
@@ -485,7 +513,7 @@
 		if (body.querySelector('button')) return;
 		const b = document.createElement('button');
 		b.className = 'primary';
-		b.textContent = 'Practice vs AI';
+		b.textContent = T('Practice vs AI');
 		b.addEventListener('click', () => startRound('practice', [CONTENT.AUTHORED[0]], { players: ['you', 'ai'] }));
 		body.appendChild(b);
 	}
@@ -496,13 +524,14 @@
 		transition('mode-select', 'menu-hosted');
 		UI.showScreen('screen-lobby');
 		const body = document.getElementById('lobby-body');
-		body.innerHTML = '<p>Connecting…</p>';
+		body.innerHTML = '<p>' + T('Connecting…') + '</p>';
 		const slug = PLATFORM.state.slug;
 		let joined = await NET.quickJoin(PLATFORM, slug);
 		let isHost = false;
 		if (joined && !joined.ok) {
-			body.innerHTML = '<p>Hosted play is unavailable right now (' + UI.escapeHtml(joined.error || 'error') + ').</p>' +
-				'<p>Practice against the deterministic AI instead — it is always available.</p>';
+			if (termsRequired(joined)) { showOnlineStop('terms'); return; }
+			body.innerHTML = '<p>' + UI.escapeHtml(T('Hosted play is unavailable right now ({error}).', { error: joined.error || 'error' })) + '</p>' +
+				'<p>' + T('Practice against the deterministic AI instead — it is always available.') + '</p>';
 			addPracticeFallback(body);
 			return;
 		}
@@ -513,7 +542,8 @@
 				metadata: { courseId: CONTENT.dailyCourse().id, seed: CONTENT.dailySeed() },
 			});
 			if (!made.ok) {
-				body.innerHTML = '<p>Could not create a room (' + UI.escapeHtml(made.error || 'error') + ').</p>';
+				if (termsRequired(made)) { showOnlineStop('terms'); return; }
+				body.innerHTML = '<p>' + UI.escapeHtml(T('Could not create a room ({error}).', { error: made.error || 'error' })) + '</p>';
 				addPracticeFallback(body);
 				return;
 			}
@@ -536,7 +566,7 @@
 			course: null, players: null, cmdSeq: 0, applied: {}, pending: {}, started: false,
 		};
 		client.connect();
-		body.innerHTML = '<p>Room <code>' + UI.escapeHtml(joined.roomId) + '</code> — connecting…</p>';
+		body.innerHTML = '<p>' + T('Room {id} — connecting…', { id: '<code>' + UI.escapeHtml(joined.roomId) + '</code>' }) + '</p>';
 	}
 
 	function renderRoomsLobby(ids) {
@@ -553,17 +583,17 @@
 		if (!h.playerId) h.playerId = h.myId;
 		ids.slice(0, 2).forEach(primeNick);
 		const names = ids.slice(0, 2).map(id =>
-			'<li>' + UI.escapeHtml(nickFor(id)) + (id === h.myId ? ' (you)' : '') + '</li>').join('');
-		let html = '<p>Room <code>' + UI.escapeHtml(h.roomId) + '</code></p><ul>' + names + '</ul>';
-		if (ids.length < 2) html += '<p>Waiting for an opponent to join this room…</p>';
-		else if (h.isHost) html += '<p>Opponent found — start when ready.</p>';
-		else html += '<p>Opponent found — waiting for the host to start.</p>';
+			'<li>' + UI.escapeHtml(nickFor(id)) + (id === h.myId ? ' ' + UI.escapeHtml(T('(you)')) : '') + '</li>').join('');
+		let html = '<p>' + T('Room {id}', { id: '<code>' + UI.escapeHtml(h.roomId) + '</code>' }) + '</p><ul>' + names + '</ul>';
+		if (ids.length < 2) html += '<p>' + T('Waiting for an opponent to join this room…') + '</p>';
+		else if (h.isHost) html += '<p>' + T('Opponent found — start when ready.') + '</p>';
+		else html += '<p>' + T('Opponent found — waiting for the host to start.') + '</p>';
 		const body = document.getElementById('lobby-body');
 		body.innerHTML = html;
 		if (ids.length >= 2 && h.isHost) {
 			const b = document.createElement('button');
 			b.className = 'primary';
-			b.textContent = 'Start match';
+			b.textContent = T('Start match');
 			b.addEventListener('click', () => hostStartMatch());
 			body.appendChild(b);
 		}
@@ -574,12 +604,12 @@
 		const h = G.hosted;
 		if (!h || !h.isHost || h.started) return;
 		const ids = (G.lobbyRoster || []).slice(0, 2);
-		if (ids.length < 2 || !h.myId) { UI.toast('Still waiting for an opponent'); return; }
+		if (ids.length < 2 || !h.myId) { UI.toast(T('Still waiting for an opponent')); return; }
 		h.hostId = h.myId;
 		h.players = [h.myId, ids.find(x => x !== h.myId) || ids[1]];
 		h.course = CONTENT.dailyCourse();
 		if (!h.client.send({ k: 'start', course: h.course, players: h.players, seed: CONTENT.dailySeed() })) {
-			UI.toast('Could not reach the room');
+			UI.toast(T('Could not reach the room'));
 			return;
 		}
 		beginRoomsMatch();
@@ -601,7 +631,7 @@
 			h.course = msg.course;
 			h.players = msg.players || [sender];
 			h.hostId = h.hostId || (msg.players && msg.players[0]) || sender;
-			if (!h.myId) { UI.toast('Could not confirm your seat — please rejoin'); h.client.leave(); return; }
+			if (!h.myId) { UI.toast(T('Could not confirm your seat — please rejoin')); h.client.leave(); return; }
 			beginRoomsMatch();
 			return;
 		}
@@ -611,7 +641,7 @@
 			if (h.pending && h.pending[msg.id]) {
 				delete h.pending[msg.id];
 				AUDIO.event({ type: 'invalid', reason: msg.error });
-				UI.announce('Rejected: ' + msg.error, true);
+				UI.announce(T('Rejected: {reason}', { reason: reasonText(msg.error) }), true);
 				transition('active', 'server-rejected');
 				refreshHud();
 			}
@@ -667,7 +697,7 @@
 			const out = roomsHostApply(full);
 			if (out.error) {
 				AUDIO.event({ type: 'invalid', reason: out.error });
-				UI.announce('Rejected: ' + out.error, true);
+				UI.announce(T('Rejected: {reason}', { reason: reasonText(out.error) }), true);
 				transition('active', 'invalid-command');
 				refreshHud();
 				return;
@@ -680,7 +710,7 @@
 		h.pending[full.id] = full;
 		if (!h.client.send({ k: 'cmd', id: full.id, cmd: full })) {
 			delete h.pending[full.id];
-			UI.toast('Connection issue — move not sent');
+			UI.toast(T('Connection issue — move not sent'));
 			transition('active', 'move-not-sent');
 			refreshHud();
 		}
@@ -702,23 +732,81 @@
 		handleResult({ events: msg.events || [], error: null, trace: msg.lite ? [] : (msg.trace || []) });
 	}
 
+	// A dropped table is not reopened (by design: a mid-round drop ends online
+	// play for that match). The SDK renewal tells why it dropped: pending terms
+	// consent or a refused token → the player must reopen from StarHermit;
+	// otherwise the table is gone → say so and offer solo play.
 	function roomsOnClose() {
 		const h = G.hosted;
-		if (!h || !h.rooms) return;
+		if (!h || !h.rooms || h.closing) return;
 		if (!h.started) {
 			G.hosted = null;
 			G.lobbyRoster = null;
 			const body = document.getElementById('lobby-body');
 			if (body && !G.session) {
-				body.innerHTML = '<p>The room connection was lost.</p>';
+				body.innerHTML = '<p>' + T('The room connection was lost.') + '</p>';
 				addPracticeFallback(body);
 			}
+			classifyDrop(false);
 			return;
 		}
 		if (G.session && !G.session.state.terminal) {
-			UI.toast('Connection to the match was lost');
+			UI.toast(T('Connection to the match was lost'));
 			if (h.pending) Object.keys(h.pending).forEach(k => delete h.pending[k]);
 			if (G.machine === 'resolving') { transition('active', 'connection-lost'); refreshHud(); }
+			classifyDrop(true);
+		}
+	}
+
+	function classifyDrop(midMatch) {
+		const sh = window.StarHermit;
+		if (!sh || typeof sh.renewForReconnect !== 'function') { if (midMatch) showOnlineStop('unavailable'); return; }
+		sh.renewForReconnect().then(r => {
+			if (r === 'terms-required') showOnlineStop('terms');
+			else if (r === 'relaunch') showOnlineStop('expired');
+			else if (midMatch) showOnlineStop('unavailable');
+		}).catch(() => { if (midMatch) showOnlineStop('unavailable'); });
+	}
+
+	function termsRequired(res) {
+		return !!(res && (res.status === 403 || res.status === 451) &&
+			((res.body && res.body.error === 'terms_acceptance_required') || /terms/i.test(res.error || '')));
+	}
+
+	// Visible stop for online play: the lobby card (when open), the status rail
+	// notice and a toast. Terms / expired offer "Back to StarHermit" (relaunch).
+	function showOnlineStop(kind) {
+		G.onlineStop = kind;
+		renderOnlineStop();
+		// the open lobby card already shows the message; elsewhere a toast too
+		const lobby = document.getElementById('screen-lobby');
+		if (!(lobby && lobby.classList.contains('open'))) UI.toast(onlineStopText(kind));
+	}
+	function onlineStopText(kind) {
+		return kind === 'terms' ? T('Accept the updated StarHermit terms to keep playing online — reopen the game from StarHermit.')
+			: kind === 'expired' ? T('Your StarHermit session expired — reopen the game from StarHermit to play online.')
+			: T('This table is no longer available — leave the round to play solo or start a new match.');
+	}
+	function renderOnlineStop() {
+		const kind = G.onlineStop;
+		const notice = document.getElementById('online-notice');
+		if (!kind) { if (notice) notice.hidden = true; return; }
+		const fill = (el) => {
+			el.innerHTML = '<p>' + UI.escapeHtml(onlineStopText(kind)) + '</p>';
+			if (kind !== 'unavailable' && window.StarHermit && typeof window.StarHermit.relaunch === 'function') {
+				const b = document.createElement('button');
+				b.className = 'primary';
+				b.textContent = T('Back to StarHermit');
+				b.addEventListener('click', () => window.StarHermit.relaunch());
+				el.appendChild(b);
+			}
+		};
+		if (notice) { fill(notice); notice.hidden = !(G.session && G.mode === 'hosted'); }
+		const lobby = document.getElementById('screen-lobby');
+		if (lobby && lobby.classList.contains('open') && !G.session) {
+			const body = document.getElementById('lobby-body');
+			fill(body);
+			addPracticeFallback(body);
 		}
 	}
 
@@ -762,7 +850,11 @@
 		RENDER.setAim(null);
 		UI.setHud({ objective: 'Pocket Greens', hole: '–', par: '–', strokes: 0, total: 0, playing: false });
 		UI.setControls({ canStrike: false, canUndo: false, canHint: false });
-		UI.setRails('Choose a mode to begin.', '');
+		UI.setRails(T('Choose a mode to begin.'), '');
+		G.lastResults = null;
+		G.vsPar = null;
+		if (G.onlineStop === 'unavailable') G.onlineStop = null;
+		renderOnlineStop();
 		transition('title', 'user-leave');
 		updateTitle();
 		UI.showScreen('screen-title');
@@ -891,14 +983,14 @@
 
 	function doUndo() {
 		const sess = G.session;
-		if (!sess || sess.mode !== 'practice') { UI.toast('Undo is only available in Practice'); return; }
+		if (!sess || sess.mode !== 'practice') { UI.toast(T('Undo is only available in Practice')); return; }
 		if (SESSION.undo(sess)) {
 			AUDIO.event({ type: 'undo' });
 			RENDER.currentState = sess.state;
 			RENDER.applySnapshot(sess.state);
 			defaultAim();
 			refreshHud();
-		} else UI.toast('Nothing to undo');
+		} else UI.toast(T('Nothing to undo'));
 	}
 
 	// Hints call the same legal-action API used by play.
@@ -906,14 +998,14 @@
 		const sess = G.session;
 		if (!sess) return;
 		const legal = RULES.legalActions(sess.state);
-		if (!legal.length) { UI.toast('No actions available right now'); return; }
+		if (!legal.length) { UI.toast(T('No actions available right now')); return; }
 		const c = currentCourse();
 		const me = sess.state.players[sess.state.currentPlayer];
 		G.aim.angle = Math.atan2(c.cup.y - me.ball.y, c.cup.x - me.ball.x);
 		G.aim.power = Math.min(80, Math.max(25, Math.hypot(c.cup.x - me.ball.x, c.cup.y - me.ball.y) * 9));
 		UI.setPower(Math.round(G.aim.power));
 		updateAimView();
-		UI.announce('Hint: aim ' + Math.round(G.aim.angle * 180 / Math.PI) + ' degrees at ' + Math.round(G.aim.power) + ' percent power.', false);
+		UI.announce(T('Hint: aim {deg} degrees at {power} percent power.', { deg: Math.round(G.aim.angle * 180 / Math.PI), power: Math.round(G.aim.power) }), false);
 	}
 
 	// ---------- title ----------
@@ -922,8 +1014,8 @@
 		const p = G.progress;
 		const done = Object.keys(p.journey.stars).length;
 		const el = document.getElementById('title-progress');
-		el.textContent = 'Journey: ' + done + '/' + CONTENT.JOURNEY.length + ' stages • Holes completed: ' + p.mastery.holesCompleted +
-			(p.mastery.bestDaily ? ' • Best daily: ' + p.mastery.bestDaily : '');
+		el.textContent = T('Journey: {done}/{total} stages • Holes completed: {holes}', { done, total: CONTENT.JOURNEY.length, holes: p.mastery.holesCompleted }) +
+			(p.mastery.bestDaily ? ' • ' + T('Best daily: {n}', { n: p.mastery.bestDaily }) : '');
 	}
 
 	// ---------- lifecycle ----------
@@ -958,7 +1050,7 @@
 			else openSetup(m);
 		});
 		UI.on('setup-start', setupStart);
-		UI.on('setup-back', () => { UI.showScreen('screen-title'); transition('title', 'setup-back'); });
+		UI.on('setup-back', () => { setupCtx = null; UI.showScreen('screen-title'); transition('title', 'setup-back'); });
 		UI.on('lobby-leave', () => {
 			if (G.hosted && G.hosted.rooms) G.hosted.client.leave();
 			G.hosted = null;
@@ -972,7 +1064,7 @@
 		UI.on('restart-hole', () => {
 			if (!G.session) return;
 			UI.closeOverlay('overlay-pause');
-			if (G.hosted) { UI.toast('Hosted matches cannot be restarted'); resume(); return; }
+			if (G.hosted) { UI.toast(T('Hosted matches cannot be restarted')); resume(); return; }
 			const c = currentCourse();
 			// the challenge must be carried over, or the retried round scores as an ordinary one
 			startRound(G.mode, [c], {
@@ -1033,27 +1125,59 @@
 	}
 
 	function wireAccount() {
-		const t = PG.platformI18n.currentPlatformStrings();
 		const signIn = document.getElementById('m-signin');
 		const invite = document.getElementById('m-invite');
-		signIn.textContent = t.signIn;
-		invite.textContent = t.invite;
+		const label = () => { signIn.textContent = PS().signIn; invite.textContent = PS().invite; };
+		label();
+		I18N.onChange(label);
 		signIn.addEventListener('click', () => PLATFORM.signIn());
 		invite.addEventListener('click', async () => {
 			const link = PLATFORM.inviteLink();
 			if (!link) return;
 			try {
 				await navigator.clipboard.writeText(link);
-				UI.toast(t.inviteCopied);
+				UI.toast(PS().inviteCopied);
 			} catch (e) {
-				UI.toast(t.inviteFailed.replace('{link}', link));
+				UI.toast(PS().inviteFailed.replace('{link}', link));
 			}
 		});
 		PLATFORM.onAuth = ({ signedIn }) => {
-			if (!signedIn) UI.toast(t.signedOut);
+			if (!signedIn) UI.toast(PS().signedOut);
 			refreshAccountButtons();
 		};
+		// Renewal hit pending terms consent (any time, e.g. the background refresh).
+		PLATFORM.onTermsRequired = () => showOnlineStop('terms');
+		// Another device saved first: the platform reloaded and merged; adopt it.
+		PLATFORM.onProgressMerged = (merged) => {
+			G.progress = merged;
+			UI.progress = merged;
+			if (G.machine === 'title') updateTitle();
+		};
 		refreshAccountButtons();
+	}
+
+	// ---------- live language switching ----------
+	// Static markup is re-applied by i18n.js; everything built in code re-renders
+	// here in place. Rounds, sockets and timers are not touched.
+	function wireLanguage() {
+		I18N.onChange(() => {
+			updateTitle();
+			UI.renderControlsHelp(bindings);
+			UI.setSync(syncLabel(PLATFORM.state.sync));
+			if (PLATFORM.state.hosted && PLATFORM.state.nickname) UI.setAccount(T('Playing as {name} — progress syncs to your account', { name: PLATFORM.state.nickname }));
+			if (UI.anyOverlayOpen() && document.getElementById('overlay-settings').classList.contains('open')) UI.relabelSettings();
+			if (setupCtx && document.getElementById('screen-setup').classList.contains('open')) {
+				const keep = setupCtx.index, ai = document.getElementById('setup-ai') && document.getElementById('setup-ai').checked;
+				openSetup(setupCtx.mode, setupCtx.mode === 'journey' ? keep : setupCtx.preset);
+				setupCtx.index = keep;
+				if (document.getElementById('setup-ai')) document.getElementById('setup-ai').checked = !!ai;
+			}
+			if (G.hosted && G.hosted.rooms && !G.hosted.started && G.lobbyRoster) renderRoomsLobby(G.lobbyRoster);
+			if (G.lastResults && document.getElementById('overlay-results').classList.contains('open')) renderResultsOverlay();
+			renderOnlineStop();
+			if (G.session) refreshHud();
+			else UI.setRails(T('Choose a mode to begin.'), '');
+		});
 	}
 
 	// ---------- boot ----------
@@ -1061,7 +1185,7 @@
 	async function boot() {
 		transition('boot', 'load');
 		PLATFORM.onIdentity = (id) => {
-			UI.setAccount(id ? 'Playing as ' + id.name + ' — progress syncs to your account' : '');
+			UI.setAccount(id ? T('Playing as {name} — progress syncs to your account', { name: id.name }) : '');
 		};
 		PLATFORM.onSync = (s) => UI.setSync(syncLabel(s));
 		G.settings = PLATFORM.loadSettings();
@@ -1073,6 +1197,7 @@
 		UI.init(G.settings, G.progress, bindings);
 		wireUi();
 		wireAccount();
+		wireLanguage();
 	window.PG.game = G; // inspectable state for smoke tests and support tooling
 
 		const canvas = document.getElementById('game-canvas');
@@ -1092,7 +1217,7 @@
 		bindLifecycle();
 		onResize();
 		if (PLATFORM.state.hosted) {
-			// remote wins on conflict: adopt the account's valid cloud save over the cache
+			// merge the account's valid cloud save with this device's progress (best of both)
 			const adopted = await PLATFORM.loadAdoptedProgress(G.progress);
 			if (adopted !== G.progress) {
 				G.progress = adopted;
@@ -1121,12 +1246,13 @@
 
 	function syncLabel(s) {
 		if (!PLATFORM.state.hosted) return '';
-		return {
+		const key = {
 			synced: 'Cloud save: synced',
 			saving: 'Cloud save: saving…',
 			offline: 'Cloud save: offline — will retry',
 			error: 'Cloud save: error — will retry',
-		}[s] || '';
+		}[s];
+		return key ? T(key) : '';
 	}
 
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { whenThree(boot); });

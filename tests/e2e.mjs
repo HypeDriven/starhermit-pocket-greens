@@ -30,6 +30,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launchToken, stubStarHermit } from './starhermit-e2e.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOT = (stage, vp) => `/tmp/pocket-greens-e2e-${stage}-${vp}.png`;
@@ -461,6 +462,90 @@ async function runGraphicsPass(browser, name, ctxOpts) {
   console.log(`ok - ${name} graphics: no console errors or warnings`);
 }
 
+// ---------- language pass (signed-in, stubbed StarHermit) ----------
+// Automatic follows the account's preferred language (fr-CA); choosing German
+// mid-round re-renders HUD, pause and settings in place (same session, same
+// ball), saves ui.language, and Report a problem posts to /reports.
+async function runLanguagePass(browser, name, ctxOpts) {
+  const errors = [];
+  const context = await browser.newContext(ctxOpts);
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
+    errors.push(`console ${m.type()}: ${m.text()}`);
+  });
+  const isOpen = (id) => page.evaluate((i) => document.getElementById(i).classList.contains('open'), id);
+  try {
+    const calls = await stubStarHermit(page, { preferredLanguage: 'fr-CA' });
+    await page.goto('about:blank');
+    await page.goto(`${BASE}/index.html#game_token=${launchToken()}`, { waitUntil: 'load' });
+    await page.waitForFunction(() => document.documentElement.lang === 'fr-CA');
+    await page.waitForSelector('#screen-title.open');
+    if ((await page.textContent('#m-practice span')).trim() !== 'Entraînement') throw new Error('title not in French');
+    await startPractice(page);
+    const statLabels = () => page.$$eval('#statusbar .stat > span[data-i18n]', (ns) => ns.map((n) => n.textContent.trim()).join('|'));
+    if (await statLabels() !== 'Trou|Par|Coups|Total') throw new Error('HUD not in French: ' + await statLabels());
+    await page.evaluate(() => { window.__langSession = window.PG.game.session; });
+    const before = await readState(page);
+    await page.click('#btn-pause');
+    await page.waitForSelector('#overlay-pause.open', { timeout: 5000 });
+    await page.click('#p-settings');
+    await page.waitForSelector('#overlay-settings.open', { timeout: 5000 });
+    const choice = page.locator('#overlay-settings [data-game-language="choice"]');
+    await choice.first().waitFor({ state: 'attached', timeout: 5000 });
+    if ((await page.locator('[data-game-language="choice"]').count()) !== 1) throw new Error('expected exactly one language selector');
+    await choice.scrollIntoViewIfNeeded();
+    const auto = await choice.locator('option').first().textContent();
+    if (auto !== 'Automatique — Français (Canada)') throw new Error('Automatic label not resolved: ' + auto);
+    await choice.selectOption('de-DE');
+    await page.waitForFunction(() => document.documentElement.lang === 'de-DE');
+    await page.waitForFunction(() => /gespeichert/.test(document.querySelector('[data-game-language="status"]').textContent));
+    if (calls.settings['ui.language']?.choice !== 'de-DE') throw new Error('ui.language not saved: ' + JSON.stringify(calls.settings));
+    if ((await page.textContent('#settings-h')).trim() !== 'Einstellungen') throw new Error('settings title not re-rendered');
+    if (!(await choice.isVisible())) throw new Error('language selector lost after the switch');
+    const report = page.locator('#overlay-settings [data-game-report="title"]');
+    await report.scrollIntoViewIfNeeded();
+    await report.fill('Test report');
+    await page.click('#overlay-settings [data-game-report="send"]');
+    await page.waitForFunction(() => /Danke/.test(document.querySelector('[data-game-report="status"]').textContent));
+    if (!calls.reports?.[0] || calls.reports[0].kind !== 'bug') throw new Error('report not posted');
+    const panelOverflow = await page.evaluate(() => [...document.querySelectorAll('#overlay-settings label, #overlay-settings button, #overlay-settings select')]
+      .filter((n) => n.offsetParent && n.getBoundingClientRect().right > window.innerWidth + 1).map((n) => n.textContent.trim().slice(0, 30)));
+    if (panelOverflow.length) throw new Error('German settings overflow the viewport: ' + panelOverflow.join(' | '));
+    await page.screenshot({ path: SHOT('language-settings', name) });
+    await page.click('#settings-close');
+    await page.waitForFunction(() => !document.getElementById('overlay-settings').classList.contains('open'));
+    if ((await page.textContent('#pause-h')).trim() !== 'Pausiert') throw new Error('pause panel not in German');
+    await page.click('#p-resume');
+    await page.waitForFunction(() => !document.getElementById('overlay-pause').classList.contains('open'));
+    if (await statLabels() !== 'Loch|Par|Schläge|Gesamt') throw new Error('HUD not re-rendered: ' + await statLabels());
+    if ((await page.textContent('#btn-strike')).trim() !== 'Schlagen') throw new Error('stroke tray not re-rendered: ' + await page.textContent('#btn-strike'));
+    const after = await readState(page);
+    const same = await page.evaluate(() => window.__langSession === window.PG.game.session);
+    if (!same || JSON.stringify(after) !== JSON.stringify(before)) throw new Error(`round changed across the switch: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+    const overflow = await page.evaluate(() => [...document.querySelectorAll('#statusbar *, #action-tray *, #rail-left *, #rail-right *')]
+      .filter((n) => n.offsetParent && n.getBoundingClientRect().right > window.innerWidth + 1).map((n) => n.textContent.trim().slice(0, 30)));
+    if (overflow.length) throw new Error('German HUD overflows the viewport: ' + overflow.join(' | '));
+    await page.screenshot({ path: SHOT('language-play', name) });
+    // Back to Automatic (account fr-CA).
+    await page.click('#btn-pause');
+    await page.waitForSelector('#overlay-pause.open', { timeout: 5000 });
+    await page.click('#p-settings');
+    await page.waitForSelector('#overlay-settings.open', { timeout: 5000 });
+    await choice.scrollIntoViewIfNeeded();
+    await choice.selectOption('auto');
+    await page.waitForFunction(() => document.documentElement.lang === 'fr-CA');
+    if ((await page.textContent('#settings-h')).trim() !== 'Paramètres') throw new Error('settings not back in French');
+    if (!(await isOpen('overlay-settings'))) throw new Error('settings closed by the switch');
+    await page.unroute(/\/api\/v1\//);
+    ok(`${name}: language — Automatic = account fr-CA, German mid-round re-renders in place, ui.language saved, report posted`);
+  } finally {
+    await context.close();
+  }
+  if (errors.length) throw new Error(`${name} language pass had console output:\n  ${errors.join('\n  ')}`);
+}
+
 // ---------- main ----------
 let browser = null;
 try {
@@ -474,7 +559,9 @@ try {
   await runModesPass(browser);
   await runGraphicsPass(browser, 'desktop', { viewport: { width: 1280, height: 800 } });
   await runGraphicsPass(browser, 'mobile', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  console.log('\nE2E PASS — pocket-greens, desktop + mobile + modes + graphics, no page errors');
+  await runLanguagePass(browser, 'desktop', { viewport: { width: 1280, height: 800 } });
+  await runLanguagePass(browser, 'mobile', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  console.log('\nE2E PASS — pocket-greens, desktop + mobile + modes + graphics + language, no page errors');
 } catch (e) {
   failures++;
   console.error('\nE2E FAIL:', e.message || e);
