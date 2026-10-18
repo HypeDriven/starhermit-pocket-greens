@@ -64,17 +64,47 @@ const GradeShader = {
 	].join('\n'),
 };
 
+// Run a post pass at a fraction of the frame: EffectComposer.addPass/setSize hand every pass the full
+// frame size, so the pass's own setSize applies the budget's scale (half-res bloom/GTAO below Ultra).
+function atScale(pass, k) {
+	if (!(k < 1)) return pass;
+	const setSize = pass.setSize.bind(pass);
+	pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+	return pass;
+}
+
+// Course surface material for the preset's budget: Lambert on Low (no roughness/metalness), Standard otherwise.
+function stdMat(params) {
+	const THREE = three();
+	if (R.q && R.q.budget && R.q.budget.material === 'lambert') {
+		const p = Object.assign({}, params);
+		delete p.roughness; delete p.metalness; delete p.envMapIntensity; delete p.roughnessMap;
+		return new THREE.MeshLambertMaterial(p);
+	}
+	return new THREE.MeshStandardMaterial(params);
+}
+
 // ---------- procedural textures (cached, shared across courses) ----------
 
 function canvasTex(key, size, paint, opts) {
 	if (R.tex[key]) return R.tex[key];
 	const THREE = three();
-	const c = document.createElement('canvas');
+	let c = document.createElement('canvas');
 	c.width = c.height = size;
 	const ctx = c.getContext('2d');
 	const img = ctx.createImageData(size, size);
 	paint(img.data, size);
 	ctx.putImageData(img, 0, 0);
+	// Painted at the authored size (the tileable noise depends on it), then resampled to the preset's texScale.
+	const k = (R.q && R.q.budget && R.q.budget.texScale) || 1;
+	if (k !== 1) {
+		const out = document.createElement('canvas');
+		out.width = out.height = Math.max(16, Math.round(size * k));
+		const o = out.getContext('2d');
+		o.imageSmoothingQuality = 'high';
+		o.drawImage(c, 0, 0, out.width, out.height);
+		c = out;
+	}
 	const t = new THREE.CanvasTexture(c);
 	t.wrapS = t.wrapT = THREE.RepeatWrapping;
 	if (!(opts && opts.linear)) t.colorSpace = THREE.SRGBColorSpace;
@@ -194,7 +224,14 @@ function init(canvas, opts) {
 	R.gpu = detectGpu(R.renderer.getContext());
 	R.mobile = (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ||
 		/Android|iPhone|iPad|Mobi/i.test(navigator.userAgent);
-	R.detected = GFX.detectPreset(R.gpu, R.mobile);
+	// StarHermit hardware level (gpu-level.js): renderer string + device facts (phone/tablet, cores, memory).
+	let sys = { mobile: R.mobile };
+	try {
+		const G = window.StarHermitGpu;
+		if (G) { const d = G.detectSystem(); sys = Object.assign({}, d, { mobile: R.mobile || d.mobile }); }
+	} catch (e) { /* defaults */ }
+	R.gpuLevel = GFX.detectLevel(R.gpu, sys);
+	R.detected = GFX.presetForLevel(R.gpuLevel);
 	R.envTex = null;
 	R.composer = null; R.passes = []; R.postKey = null;
 	R.pixelRatio = 0;
@@ -211,7 +248,7 @@ function init(canvas, opts) {
 
 	// pooled particle system (Points); cosmetic only, never raycast
 	const pgeo = new THREE.BufferGeometry();
-	const max = GFX.PARTICLE_BUDGET.high;
+	const max = GFX.SPARK_MAX; // pool built at the largest budget; the preset uses particleBudget of it
 	pgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(max * 3), 3));
 	const pmat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, map: dotTex(), transparent: true, opacity: 0.9, depthWrite: false });
 	R.particles = new THREE.Points(pgeo, pmat);
@@ -303,7 +340,7 @@ function loadCourse(course, theme) {
 	// green: mowing-stripe texture in detailed mode, flat colour otherwise
 	const greenGeo = new THREE.BoxGeometry(course.w, 0.3, course.h);
 	if (detailed) scaleUV(greenGeo, course.w / 8, course.h / 8);
-	const green = new THREE.Mesh(greenGeo, new THREE.MeshStandardMaterial({
+	const green = new THREE.Mesh(greenGeo, stdMat({
 		color: P.green, roughness: 0.95, map: detailed ? mowTex() : null,
 	}));
 	green.position.set(cx, -0.15, cz);
@@ -313,7 +350,7 @@ function loadCourse(course, theme) {
 	// rough surround
 	const roughGeo = new THREE.BoxGeometry(course.w + SURROUND * 2, 0.2, course.h + SURROUND * 2);
 	if (detailed) scaleUV(roughGeo, (course.w + 3) / 3, (course.h + 3) / 3);
-	const rough = new THREE.Mesh(roughGeo, new THREE.MeshStandardMaterial({
+	const rough = new THREE.Mesh(roughGeo, stdMat({
 		color: P.rough, roughness: 1, map: detailed ? noiseTex('rough', 31, 205, 255, 3) : null,
 	}));
 	rough.position.set(cx, -0.32, cz);
@@ -322,8 +359,8 @@ function loadCourse(course, theme) {
 	g.add(rough);
 
 	const wood = detailed ? grainTex() : null;
-	const wallMat = new THREE.MeshStandardMaterial({ color: P.wall, roughness: 0.8, map: wood });
-	const capMat = detailed ? new THREE.MeshStandardMaterial({ color: new THREE.Color(P.wall).lerp(new THREE.Color(0xffffff), 0.28), roughness: 0.55, map: wood }) : null;
+	const wallMat = stdMat({ color: P.wall, roughness: 0.8, map: wood });
+	const capMat = detailed ? stdMat({ color: new THREE.Color(P.wall).lerp(new THREE.Color(0xffffff), 0.28), roughness: 0.55, map: wood }) : null;
 	// boundary rails
 	const railH = 0.34, railT = 0.28;
 	const addWall = (x, z, w, d) => {
@@ -347,7 +384,7 @@ function loadCourse(course, theme) {
 	 [-railT / 2, cz, railT, course.h], [course.w + railT / 2, cz, railT, course.h]].forEach(b => addWall(b[0], b[1], b[2], b[3]));
 	for (const w of course.walls) addWall(w.x + w.w / 2, w.y + w.h / 2, w.w, w.h);
 
-	const obMat = new THREE.MeshStandardMaterial({ color: P.obstacle, roughness: 0.7, map: detailed ? noiseTex('stone', 41, 200, 255, 4) : null });
+	const obMat = stdMat({ color: P.obstacle, roughness: 0.7, map: detailed ? noiseTex('stone', 41, 200, 255, 4) : null });
 	for (const o of course.obstacles) {
 		if (o.type === 'circle') {
 			const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 1.1, 0.5, detailed ? 36 : 20), obMat);
@@ -358,7 +395,7 @@ function loadCourse(course, theme) {
 			if (detailed) {
 				// planter: a mossy crown on top of the stone drum
 				const crown = new THREE.Mesh(new THREE.SphereGeometry(o.r * 0.82, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-					new THREE.MeshStandardMaterial({ color: new THREE.Color(P.rough).multiplyScalar(0.8), roughness: 1, map: noiseTex('rough', 31, 205, 255, 3) }));
+					stdMat({ color: new THREE.Color(P.rough).multiplyScalar(0.8), roughness: 1, map: noiseTex('rough', 31, 205, 255, 3) }));
 				crown.scale.y = 0.55;
 				crown.position.set(o.x, 0.5, o.y);
 				crown.castShadow = true;
@@ -380,12 +417,12 @@ function loadCourse(course, theme) {
 		const wx = z.type === 'circle' ? z.x : z.x + z.w / 2;
 		const wz = z.type === 'circle' ? z.y : z.y + z.h / 2;
 		const mat = detailed
-			? new THREE.MeshStandardMaterial({
+			? stdMat({
 				color: new THREE.Color(P.water).lerp(new THREE.Color(0x9fd8ff), 0.18), transparent: true, opacity: 0.86,
 				roughness: 0.08, metalness: 0.2, normalMap: waterNormalTex(), normalScale: new THREE.Vector2(0.35, 0.35),
 				envMapIntensity: 1.3,
 			})
-			: new THREE.MeshStandardMaterial({ color: P.water, transparent: true, opacity: 0.85, roughness: 0.15, metalness: 0.35 });
+			: stdMat({ color: P.water, transparent: true, opacity: 0.85, roughness: 0.15, metalness: 0.35 });
 		const geo = z.type === 'circle' ? new THREE.CylinderGeometry(z.r, z.r, 0.08, 40) : new THREE.BoxGeometry(w, 0.08, h);
 		if (detailed && z.type !== 'circle') scaleUV(geo, w / 2, h / 2);
 		const m = new THREE.Mesh(geo, mat);
@@ -395,7 +432,7 @@ function loadCourse(course, theme) {
 		R.waterMats.push(mat);
 	}
 
-	const sandMat = new THREE.MeshStandardMaterial({ color: P.sand, roughness: 1, map: detailed ? noiseTex('sand', 53, 215, 255, 1.5) : null });
+	const sandMat = stdMat({ color: P.sand, roughness: 1, map: detailed ? noiseTex('sand', 53, 215, 255, 1.5) : null });
 	for (const z of course.sand) {
 		const w = z.w || z.r * 2, h = z.h || z.r * 2;
 		const geo = z.type === 'circle' ? new THREE.CylinderGeometry(z.r, z.r, 0.06, 40) : new THREE.BoxGeometry(w, 0.06, h);
@@ -406,8 +443,8 @@ function loadCourse(course, theme) {
 		g.add(m);
 	}
 
-	const mvMat = new THREE.MeshStandardMaterial({ color: P.mover, roughness: 0.5 });
-	const bandMat = detailed ? new THREE.MeshStandardMaterial({ color: 0xf4efe2, roughness: 0.4 }) : null;
+	const mvMat = stdMat({ color: P.mover, roughness: 0.5 });
+	const bandMat = detailed ? stdMat({ color: 0xf4efe2, roughness: 0.4 }) : null;
 	for (const mv of course.movers) {
 		const m = new THREE.Mesh(new THREE.CylinderGeometry(mv.r, mv.r, 0.7, detailed ? 32 : 18), mvMat);
 		m.castShadow = true;
@@ -425,21 +462,21 @@ function loadCourse(course, theme) {
 	// cup: dark recessed ring + flag for readability at distance
 	const cupM = new THREE.Mesh(
 		new THREE.CylinderGeometry(RULES.CUP_R, RULES.CUP_R, 0.05, 32),
-		new THREE.MeshStandardMaterial({ color: P.cup, roughness: 0.9 })
+		stdMat({ color: P.cup, roughness: 0.9 })
 	);
 	cupM.position.set(course.cup.x, 0.03, course.cup.y);
 	cupM.userData.layer = 'gameplay';
 	g.add(cupM);
 	if (detailed) {
 		const liner = new THREE.Mesh(new THREE.RingGeometry(RULES.CUP_R * 0.84, RULES.CUP_R, 40),
-			new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.4 }));
+			stdMat({ color: 0xf2f2ee, roughness: 0.4 }));
 		liner.rotation.x = -Math.PI / 2;
 		liner.position.set(course.cup.x, 0.057, course.cup.y);
 		liner.userData.layer = 'gameplay';
 		g.add(liner);
 	}
 	const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.1, 8),
-		detailed ? new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.25, metalness: 0.6 }) : new THREE.MeshStandardMaterial({ color: 0xf0f0f0 }));
+		detailed ? stdMat({ color: 0xf0f0f0, roughness: 0.25, metalness: 0.6 }) : stdMat({ color: 0xf0f0f0 }));
 	pole.position.set(course.cup.x, 0.55, course.cup.y);
 	pole.castShadow = detailed;
 	const flagGeo = new THREE.PlaneGeometry(0.42, 0.26, detailed ? 10 : 1, 1);
@@ -467,7 +504,7 @@ function buildGarden(g, course, P) {
 	const cx = course.w / 2, cz = course.h / 2;
 	const lawnCol = new THREE.Color(P.rough).multiplyScalar(0.68);
 	const lawnGeo = scaleUV(new THREE.PlaneGeometry(course.w + 80, course.h + 80), (course.w + 80) / 4, (course.h + 80) / 4);
-	const lawn = new THREE.Mesh(lawnGeo, new THREE.MeshStandardMaterial({ color: lawnCol, roughness: 1, map: noiseTex('rough', 31, 205, 255, 3) }));
+	const lawn = new THREE.Mesh(lawnGeo, stdMat({ color: lawnCol, roughness: 1, map: noiseTex('rough', 31, 205, 255, 3) }));
 	lawn.rotation.x = -Math.PI / 2;
 	lawn.position.set(cx, -0.42, cz);
 	lawn.receiveShadow = true;
@@ -486,8 +523,8 @@ function buildGarden(g, course, P) {
 	perim(-off, -off, course.w + off, -off); perim(course.w + off, -off, course.w + off, course.h + off);
 	perim(course.w + off, course.h + off, -off, course.h + off); perim(-off, course.h + off, -off, -off);
 	const hedgeCol = new THREE.Color(P.rough).multiplyScalar(0.55);
-	const hedges = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2),
-		new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, map: noiseTex('leaf', 61, 150, 255, 1.2) }), spots.length);
+	const hedges = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, R.q.budget.hedge),
+		stdMat({ color: 0xffffff, roughness: 0.95, map: noiseTex('leaf', 61, 150, 255, 1.2) }), spots.length);
 	spots.forEach((s, i) => {
 		const r = 0.42 + rnd() * 0.18;
 		dummy.position.set(s[0] + (rnd() - 0.5) * 0.2, -0.3 + r * 0.6, s[1] + (rnd() - 0.5) * 0.2);
@@ -504,7 +541,8 @@ function buildGarden(g, course, P) {
 	// flower borders inside the rough band (between the rail and the hedges)
 	const petals = [0xf7a8c4, 0xffe27a, 0xffffff, 0xc9a7f0, 0xff9d6e];
 	const flowerSpots = [];
-	for (let i = 0; i < Math.round((course.w + course.h) * 5); i++) {
+	const foliage = R.q.budget.foliage;
+	for (let i = 0; i < Math.round((course.w + course.h) * 5 * foliage); i++) {
 		const t = rnd(), side = Math.floor(rnd() * 4), band = 0.45 + rnd() * (SURROUND - 0.55);
 		let x, z;
 		if (side === 0) { x = -SURROUND + t * (course.w + SURROUND * 2); z = -band; }
@@ -514,7 +552,7 @@ function buildGarden(g, course, P) {
 		flowerSpots.push([x, z]);
 	}
 	const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.07, 0),
-		new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), flowerSpots.length);
+		stdMat({ color: 0xffffff, roughness: 0.6 }), flowerSpots.length);
 	flowerSpots.forEach((s, i) => {
 		dummy.position.set(s[0], -0.18 + rnd() * 0.08, s[1]);
 		const k = 0.8 + rnd() * 0.6;
@@ -528,9 +566,9 @@ function buildGarden(g, course, P) {
 	g.add(flowers);
 
 	// grass tufts scattered on the rough (fine blades read as texture at tabletop scale)
-	const tuftN = Math.round((course.w + course.h) * 6);
+	const tuftN = Math.round((course.w + course.h) * 6 * foliage);
 	const tufts = new THREE.InstancedMesh(new THREE.ConeGeometry(0.035, 0.22, 4),
-		new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), tuftN);
+		stdMat({ color: 0xffffff, roughness: 1 }), tuftN);
 	const tuftCol = new THREE.Color(P.rough);
 	for (let i = 0; i < tuftN; i++) {
 		const s = flowerSpots[i % flowerSpots.length];
@@ -545,8 +583,8 @@ function buildGarden(g, course, P) {
 	g.add(tufts);
 
 	// trees at the corners, beyond the hedges (they never shade the green)
-	const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a33, roughness: 0.9, map: grainTex() });
-	const canopyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(P.rough).multiplyScalar(0.62), roughness: 0.9, map: noiseTex('leaf', 61, 150, 255, 1.2), flatShading: true });
+	const trunkMat = stdMat({ color: 0x6b4a33, roughness: 0.9, map: grainTex() });
+	const canopyMat = stdMat({ color: new THREE.Color(P.rough).multiplyScalar(0.62), roughness: 0.9, map: noiseTex('leaf', 61, 150, 255, 1.2), flatShading: true });
 	const toff = off + 2.2;
 	[[-toff, -toff], [course.w + toff, -toff], [-toff, course.h + toff], [course.w + toff, course.h + toff]].forEach(p => {
 		const h = 1.6 + rnd() * 0.8;
@@ -560,7 +598,7 @@ function buildGarden(g, course, P) {
 
 	// stepping stones on the lawn
 	const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.22, 0),
-		new THREE.MeshStandardMaterial({ color: 0xb8b2a6, roughness: 0.85, map: noiseTex('stone', 41, 200, 255, 4) }), 10);
+		stdMat({ color: 0xb8b2a6, roughness: 0.85, map: noiseTex('stone', 41, 200, 255, 4) }), 10);
 	for (let i = 0; i < 10; i++) {
 		const side = i % 2 ? -1 : 1;
 		dummy.position.set(cx + (rnd() - 0.5) * course.w * 1.2, -0.42, side > 0 ? course.h + off + 1 + rnd() * 1.5 : -off - 1 - rnd() * 1.5);
@@ -574,7 +612,7 @@ function buildGarden(g, course, P) {
 	g.add(stones);
 
 	// drifting pollen motes (cosmetic particles; hidden when particles are low or motion reduced)
-	const n = 40;
+	const n = R.q.budget.pollen;
 	const pos = new Float32Array(n * 3), seed = [];
 	for (let i = 0; i < n; i++) seed.push([rnd() * (course.w + 4) - 2, 0.3 + rnd() * 1.4, rnd() * (course.h + 4) - 2, rnd() * 6.28]);
 	const pgeo = new THREE.BufferGeometry();
@@ -623,9 +661,9 @@ function ballMesh(id, color) {
 	const detailed = !!(R.q && R.q.detail === 'detailed');
 	const m = new THREE.Mesh(
 		new THREE.SphereGeometry(RULES.BALL_R, detailed ? 32 : 24, detailed ? 24 : 18),
-		detailed
+		detailed && R.q.budget.material === 'physical'
 			? new THREE.MeshPhysicalMaterial({ color: color || 0xf5f6fa, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.12 })
-			: new THREE.MeshStandardMaterial({ color: color || 0xf5f6fa, roughness: 0.35 })
+			: stdMat({ color: color || 0xf5f6fa, roughness: 0.35 })
 	);
 	m.castShadow = true;
 	m.userData.layer = 'gameplay';
@@ -988,10 +1026,10 @@ function buildPost() {
 			const hi = q.ao === 'high';
 			ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1.0, samples: hi ? 16 : 8 });
 			ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: hi ? 6 : 4, rings: 2, samples: hi ? 16 : 8 });
-			add(ao);
+			add(atScale(ao, q.budget.aoRes));
 		}
 		// high threshold: only specular glints, the selection ring and bright highlights bloom
-		if (q.bloom === 'on') add(new A.UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.45, 0.9));
+		if (q.bloom === 'on') add(atScale(new A.UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.45, 0.9), q.budget.bloomRes));
 		add(new A.OutputPass());
 		if (q.grade === 'on') {
 			const grade = add(new A.ShaderPass(GradeShader));
@@ -1060,7 +1098,7 @@ function setGraphics(saved) {
 	R.gfxJson = json;
 	R.saved = Object.assign({}, saved || {});
 	const prev = R.q;
-	const q = GFX.resolve(R.saved, R.detected);
+	const q = GFX.resolve(R.saved, R.detected, R.gpuLevel);
 	R.q = q;
 	if (!R.renderer) return q;
 	const THREE = three();
@@ -1087,7 +1125,13 @@ function setGraphics(saved) {
 	R.particleBudget = budget;
 
 	// scenery detail rebuilds the course views from their retained descriptors
-	if (prev && prev.detail !== q.detail && R.course) {
+	const pb = prev && prev.budget, b = q.budget;
+	const assetsChanged = !!pb && (pb.material !== b.material || pb.texScale !== b.texScale || pb.foliage !== b.foliage || pb.hedge !== b.hedge || pb.pollen !== b.pollen);
+	if (pb && pb.texScale !== b.texScale) for (const k of Object.keys(R.tex)) { R.tex[k].dispose(); delete R.tex[k]; }
+	if (pb && pb.material !== b.material) {
+		for (const id of Object.keys(R.ballMeshes)) { const m = R.ballMeshes[id]; R.scene.remove(m); m.geometry.dispose(); m.material.dispose(); delete R.ballMeshes[id]; }
+	}
+	if (prev && (prev.detail !== q.detail || assetsChanged) && R.course) {
 		loadCourse(R.course, R.theme);
 		if (R.currentState) applySnapshot(R.currentState);
 	}
@@ -1109,10 +1153,11 @@ function setGraphics(saved) {
 
 /** What the settings panel shows: GPU, auto choice, resolved tiers, cost and frame rate. */
 function graphicsInfo(t) {
-	const q = R.q || GFX.resolve(R.saved, R.detected);
+	const q = R.q || GFX.resolve(R.saved, R.detected, R.gpuLevel);
 	const px = [Math.round((R.width || 0) * (R.pixelRatio || 1)), Math.round((R.height || 0) * (R.pixelRatio || 1))];
 	return {
 		gpu: R.gpu,
+		level: R.gpuLevel,
 		detected: R.detected,
 		resolved: q,
 		summary: GFX.describe(q, R.width ? px : null, t),

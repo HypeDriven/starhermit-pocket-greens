@@ -423,6 +423,7 @@ async function runGraphicsPass(browser, name, ctxOpts) {
     await page.waitForTimeout(1200); // let the full post chain (GTAO, bloom, grade, MSAA) render
     const ultraSummary = await page.textContent('#gfx-summary');
     if (!/4096² shadows/.test(ultraSummary) || !/px/.test(ultraSummary)) throw new Error(`unexpected Ultra summary: "${ultraSummary}"`);
+    if (!/ · Level 0 · /.test(ultraSummary)) throw new Error(`summary lacks the hardware level: "${ultraSummary}"`);
     await page.selectOption('#gfx-preset', 'low');
     await waitPreset('low');
     await page.waitForTimeout(400);

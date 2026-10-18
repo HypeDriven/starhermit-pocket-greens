@@ -295,7 +295,7 @@
 		if (!el || !PG.render.ready) return;
 		const T = gfxStrings();
 		const info = PG.render.graphicsInfo(T.sum);
-		let text = (info.gpu || T.unknownGpu) + ' · ' + info.summary;
+		let text = (info.gpu || T.unknownGpu) + (info.level != null ? ' · ' + T.level.replace('{n}', info.level) : '') + ' · ' + info.summary;
 		if (info.resolved.showFps && info.fps) text += ' · ' + info.fps + ' fps';
 		if (el.textContent !== text) el.textContent = text;
 		const note = $('gfx-post-note');

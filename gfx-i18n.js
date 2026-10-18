@@ -18,7 +18,7 @@ S['en-US'] = {
 	sum: { noShadows: 'no shadows', shadows: '{n}² shadows', ao: 'ambient occlusion', aoHigh: 'full ambient occlusion',
 		bloom: 'bloom', reflections: 'reflections', noAA: 'no anti-aliasing' },
 	postUnavailable: 'Post-processing is unavailable on this device; the game renders without it.',
-	unknownGpu: 'unknown GPU',
+	unknownGpu: 'unknown GPU', level: 'Level {n}',
 };
 
 S['en-GB'] = Object.assign({}, S['en-US'], {
@@ -37,7 +37,7 @@ S['es-419'] = {
 	sum: { noShadows: 'sin sombras', shadows: 'sombras {n}²', ao: 'oclusión ambiental', aoHigh: 'oclusión ambiental completa',
 		bloom: 'resplandor', reflections: 'reflejos', noAA: 'sin suavizado' },
 	postUnavailable: 'El posprocesamiento no está disponible en este dispositivo; el juego se muestra sin él.',
-	unknownGpu: 'GPU desconocida',
+	unknownGpu: 'GPU desconocida', level: 'Nivel {n}',
 };
 
 S['es-ES'] = Object.assign({}, S['es-419'], {
@@ -58,7 +58,7 @@ S['de-DE'] = {
 	sum: { noShadows: 'keine Schatten', shadows: '{n}²-Schatten', ao: 'Umgebungsverdeckung', aoHigh: 'volle Umgebungsverdeckung',
 		bloom: 'Bloom', reflections: 'Spiegelungen', noAA: 'keine Kantenglättung' },
 	postUnavailable: 'Nachbearbeitung ist auf diesem Gerät nicht verfügbar; das Spiel wird ohne sie dargestellt.',
-	unknownGpu: 'unbekannte GPU',
+	unknownGpu: 'unbekannte GPU', level: 'Stufe {n}',
 };
 
 S['fr-FR'] = {
@@ -73,14 +73,14 @@ S['fr-FR'] = {
 	sum: { noShadows: 'sans ombres', shadows: 'ombres {n}²', ao: 'occlusion ambiante', aoHigh: 'occlusion ambiante complète',
 		bloom: 'flou lumineux', reflections: 'reflets', noAA: 'sans anticrénelage' },
 	postUnavailable: 'Le post-traitement n’est pas disponible sur cet appareil ; le jeu s’affiche sans.',
-	unknownGpu: 'GPU inconnu',
+	unknownGpu: 'GPU inconnu', level: 'Niveau {n}',
 };
 
 S['fr-CA'] = Object.assign({}, S['fr-FR'], {
 	showFps: 'Afficher la fréquence d’images (IPS)',
 	cat: Object.assign({}, S['fr-FR'].cat, { bloom: 'Éclat lumineux' }),
 	sum: Object.assign({}, S['fr-FR'].sum, { bloom: 'éclat lumineux' }),
-	unknownGpu: 'processeur graphique inconnu',
+	unknownGpu: 'processeur graphique inconnu', level: 'Niveau {n}',
 });
 
 S['pt-BR'] = {
@@ -95,7 +95,7 @@ S['pt-BR'] = {
 	sum: { noShadows: 'sem sombras', shadows: 'sombras {n}²', ao: 'oclusão de ambiente', aoHigh: 'oclusão de ambiente completa',
 		bloom: 'brilho', reflections: 'reflexos', noAA: 'sem suavização' },
 	postUnavailable: 'O pós-processamento não está disponível neste dispositivo; o jogo é exibido sem ele.',
-	unknownGpu: 'GPU desconhecida',
+	unknownGpu: 'GPU desconhecida', level: 'Nível {n}',
 };
 
 S['it-IT'] = {
@@ -110,7 +110,7 @@ S['it-IT'] = {
 	sum: { noShadows: 'senza ombre', shadows: 'ombre {n}²', ao: 'occlusione ambientale', aoHigh: 'occlusione ambientale completa',
 		bloom: 'bagliore', reflections: 'riflessi', noAA: 'senza antialiasing' },
 	postUnavailable: 'La post-elaborazione non è disponibile su questo dispositivo; il gioco viene mostrato senza.',
-	unknownGpu: 'GPU sconosciuta',
+	unknownGpu: 'GPU sconosciuta', level: 'Livello {n}',
 };
 
 const LOCALES = Object.keys(S);
