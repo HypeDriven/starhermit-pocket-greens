@@ -364,5 +364,5 @@ const api = {
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
-else { window.PG = window.PG || {}; window.PG.rules = api; }
+else { globalThis.PG = globalThis.PG || {}; globalThis.PG.rules = api; }
 })();

@@ -8,8 +8,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const RULES = require('./rules');
-const CONTENT = require('./content');
+const RULES = require('./js/rules');
+const CONTENT = require('./js/content');
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;

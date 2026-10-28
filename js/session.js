@@ -5,7 +5,7 @@
 // A session is a round of one or more holes. Rules state is only mutated through validated
 // commands; rendering/UI consume immutable snapshots.
 
-const RULES = (typeof module !== 'undefined' && module.exports) ? require('./rules') : window.PG.rules;
+const RULES = (typeof module !== 'undefined' && module.exports) ? require('./rules') : globalThis.PG.rules;
 
 const REPLAY_SCHEMA = 1;
 
@@ -195,5 +195,5 @@ const api = {
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
-else { window.PG = window.PG || {}; window.PG.session = api; }
+else { globalThis.PG = globalThis.PG || {}; globalThis.PG.session = api; }
 })();

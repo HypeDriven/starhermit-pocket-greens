@@ -1,22 +1,17 @@
 {
   "name": "pocket-greens",
-  "version": "1.0.0",
-  "description": "Pocket Greens — turn-based precision sport in a whimsical garden (browser game)",
-  "main": "server.js",
-  "scripts": {
-    "test": "node test.js && node --test tests/gfx.test.js tests/platform.test.js tests/i18n.test.js",
-    "test:e2e": "node tests/e2e.mjs",
-    "start": "node server.js"
-  },
-  "keywords": [
-    "game",
-    "minigolf",
-    "three.js"
-  ],
-  "author": "",
+  "private": true,
+  "description": "Pocket Greens — miniature garden golf on the StarHermit engine. CommonJS by default: server.js, js/*.js and tests/run-tests.js are UMD/CJS; the engine loads js/*.js as classic scripts. Dev-only ESM lives in .mjs files.",
   "license": "SEE LICENSE IN LICENSE.md",
-  "dependencies": {
-    "three": "^0.185.1"
+  "scripts": {
+    "test": "npm run test:unit && npm run test:native",
+    "test:unit": "node tests/run-tests.js && node --test tests/progress.test.mjs tests/i18n.test.mjs",
+    "test:native": "node tests/native.mjs",
+    "test:browser": "node tools/browser-play.mjs .",
+    "package": "node tools/package-web.mjs",
+    "css": "node tools/css.mjs",
+    "plays": "node tools/gen-plays.mjs",
+    "serve": "node server.js"
   },
   "devDependencies": {
     "playwright-core": "^1.62.1"

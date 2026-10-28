@@ -1,0 +1,88 @@
+/* Pocket Greens — the browser client's style sheet (index.html <style>),
+ * kept for the engine port and rewritten class-based for `starhermit css`
+ * (`npm run css` converts it into assets/ui-style.json, which
+ * native/style.ts registers): ids and element selectors (h1–h3, small,
+ * code, table cells) became classes; color-mix() panels are precomputed
+ * rgba tokens; the media queries, safe-area insets, the ui-scale zoom, the
+ * body classes (high contrast, larger text), the graphics panel and the
+ * fps meter are gone: the runtime gives interface size, text size, high
+ * contrast, reduced motion and graphics, native/style.ts swaps the
+ * high-contrast tokens, and native/screens.ts picks the phone layout
+ * (≤ 700 px wide) and the short landscape (≤ 500 px tall) by window size. */
+* { box-sizing: border-box; }
+:root {
+  --bg: #1c2a1e;
+  --panel: #24382a;
+  --panel-2: #2d4534;
+  --ink: #f0f4ec;
+  --ink-dim: #b9c8b4;
+  --accent: #7ec96e;
+  --accent-2: #f2c14e;
+  --danger: #e06a5a;
+  --focus: #ffd54e;
+  --primary-ink: #10220f;
+  --primary-sub: #1f3d1d;
+  --panel-a: rgba(36, 56, 42, 0.88);
+  --bg-a92: rgba(28, 42, 30, 0.92);
+  --bg-a68: rgba(28, 42, 30, 0.68);
+  font-size: 16px;
+}
+
+/* ---------- type ---------- */
+.h1 { font-size: 32px; font-weight: 700; color: var(--ink); }
+.h2 { font-size: 24px; font-weight: 700; color: var(--ink); }
+.h3 { font-size: 18.7px; font-weight: 700; color: var(--ink); }
+.body { color: var(--ink); }
+.bold { color: var(--ink); font-weight: 700; }
+.muted { color: var(--ink-dim); }
+.code { color: var(--ink); font-family: monospace; }
+
+/* ---------- buttons ---------- */
+.btn {
+  min-height: 44px; min-width: 44px; padding: 9.6px 16px;
+  background: var(--panel-2); color: var(--ink);
+  border: 2px solid transparent; border-radius: 10px; text-align: center;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn:disabled { opacity: 0.45; }
+.btn-primary { background: var(--accent); color: var(--primary-ink); font-weight: 700; }
+.btn-danger { background: var(--danger); color: #ffffff; }
+.btn-menu { text-align: left; }
+.btn-rail { min-height: 38px; padding: 5.6px 9.6px; }
+.btn-label { color: var(--ink); }
+.btn-label-primary { color: var(--primary-ink); font-weight: 700; }
+.btn-sub { font-size: 13.3px; color: var(--ink-dim); }
+.btn-sub-primary { font-size: 13.3px; color: var(--primary-sub); }
+.btn-grid { min-height: 44px; padding: 9.6px 16px; background: var(--panel-2); color: var(--ink); border: 2px solid transparent; border-radius: 10px; text-align: left; }
+.btn-grid:hover { border-color: var(--accent); }
+.btn-grid:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-grid:disabled { opacity: 0.45; }
+.btn-grid.active { border-color: var(--accent-2); }
+
+/* ---------- status bar ---------- */
+.statusbar { background: var(--panel); padding: 6.4px 12px; }
+.objective { font-weight: 600; color: var(--ink); }
+.stat { color: var(--ink-dim); }
+.stat-b { color: var(--ink); font-weight: 700; }
+
+/* ---------- rails and tray ---------- */
+.rail { background: var(--panel-a); border-radius: 12px; padding: 9.6px; }
+.rail-h2 { font-size: 15.2px; font-weight: 700; color: var(--ink-dim); }
+.power-wrap { background: var(--panel-a); border-radius: 12px; padding: 6.4px 11.2px; }
+.online-notice { border: 1px solid var(--danger); border-radius: 8px; padding: 8px 9.6px; background: var(--panel); }
+
+/* ---------- screens and overlays ---------- */
+.screen { background: var(--bg-a92); }
+.screen-title { background: var(--bg-a68); }
+.card { background: var(--panel); border-radius: 16px; padding: 20px 24px; }
+.overlay { background: rgba(0, 0, 0, 0.55); }
+.overlay-card { background: var(--panel); border-radius: 16px; padding: 20px 24px; }
+.setting-row { padding: 5.6px 0; }
+.th { font-weight: 700; color: var(--ink); }
+.td { color: var(--ink); }
+.td-b { color: var(--ink); font-weight: 700; }
+
+/* ---------- captions and toast ---------- */
+.captions { background: rgba(0, 0, 0, 0.75); border-radius: 8px; padding: 4.8px 12.8px; }
+.toast { background: var(--panel-2); border-radius: 10px; padding: 8px 16px; }

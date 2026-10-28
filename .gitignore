@@ -5,3 +5,6 @@ node_modules/
 test-results/
 .tmp-build/
 .server-data.json
+.starhermit/
+vendor/
+tests/native/daily.today.play

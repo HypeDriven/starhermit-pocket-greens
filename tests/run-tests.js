@@ -5,9 +5,9 @@
 
 const assert = require('assert');
 const path = require('path');
-const RULES = require('./rules');
-const CONTENT = require('./content');
-const SESSION = require('./session');
+const RULES = require('../js/rules');
+const CONTENT = require('../js/content');
+const SESSION = require('../js/session');
 
 let passed = 0;
 const failures = [];
@@ -216,26 +216,25 @@ test('five themes exist with complete palettes', () => {
 // ---------- platform: achievements ----------
 
 test('streak achievement: three under-par holes in a row, reset on par, idempotent', () => {
-	const PLATFORM = require('./platform');
-	const p = JSON.parse(JSON.stringify(PLATFORM.DEFAULT_PROGRESS));
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // streak 1
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 2, 2), null); // par breaks the streak
+	const PROGRESS = require('../js/progress');
+	const p = PROGRESS.blank();
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 1, 2, 1000), null); // streak 1
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 2, 2, 1000), null); // par breaks the streak
 	assert.strictEqual(p.mastery.underParStreak, 0);
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // streak 1
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 3), null); // streak 2
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), 'On a Roll'); // streak 3
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 1, 2), null); // idempotent
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 1, 2, 1000), null); // streak 1
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 1, 3, 1000), null); // streak 2
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 1, 2, 1000), 'On a Roll'); // streak 3
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 1, 2, 1000), null); // idempotent
 	assert.ok(p.achievements.streak_3);
 	// a capped hole (over par) resets the streak again
-	assert.strictEqual(PLATFORM.recordHoleStreak(p, 1, 7, 2), null);
+	assert.strictEqual(PROGRESS.recordHoleStreak(p, 1, 7, 2, 1000), null);
 	assert.strictEqual(p.mastery.underParStreak, 0);
 	// rounds without a completed hole leave the streak untouched
 	p.mastery.underParStreak = 2;
-	PLATFORM.recordHoleStreak(p, 0, 0, 2);
+	PROGRESS.recordHoleStreak(p, 0, 0, 2, 1000);
 	assert.strictEqual(p.mastery.underParStreak, 2);
 });
 
-// StarHermit adapter tests live in tests/platform.test.js.
 
 // ---------- golden sessions ----------
 
@@ -265,7 +264,7 @@ test('golden: AI strike is deterministic', () => {
 // ---------- server smoke test ----------
 
 async function serverTests() {
-	const server = require('./server');
+	const server = require('../server');
 	await new Promise(r => server.listen(0, r));
 	const port = server.address().port;
 	const base = 'http://127.0.0.1:' + port;

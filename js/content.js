@@ -5,7 +5,7 @@
 // Content entries: { id, seed, par, cap, theme, tutorial, mechanics, course }.
 // Course geometry lives here; the rules engine simulates it without knowing content semantics.
 
-const RULES = (typeof module !== 'undefined' && module.exports) ? require('./rules') : window.PG.rules;
+const RULES = (typeof module !== 'undefined' && module.exports) ? require('./rules') : globalThis.PG.rules;
 
 const CONTENT_VERSION = 2;
 
@@ -285,5 +285,5 @@ const api = {
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
-else { window.PG = window.PG || {}; window.PG.content = api; }
+else { globalThis.PG = globalThis.PG || {}; globalThis.PG.content = api; }
 })();

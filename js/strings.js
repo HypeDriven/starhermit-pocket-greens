@@ -1207,6 +1207,121 @@ const IT = {
 	'⏸ Pause': '⏸ Pausa',
 };
 
+// Engine client additions (native/*.ts): the account lines from the browser build's
+// platform-i18n.js and the strings the runtime's Options and gamepads brought.
+Object.assign(DE, {
+	"Graphics": "Grafik",
+	"Open Options": "Optionen öffnen",
+	"Gamepad": "Gamepad",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "Lautstärken, Grafikqualität, Sprache, Tastenbelegung, Textgröße, hoher Kontrast, reduzierte Bewegung und Vibration findest du in den StarHermit-Optionen.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} Zielen und Stärke, {strike} Schlagen, {cancel} Abbrechen, {hint} Tipp, {undo} Rückgängig, {ff} Vorspulen, {pause} Pause",
+	"Sign in with StarHermit": "Mit StarHermit anmelden",
+	"Invite a friend": "Freund einladen",
+	"Invite link copied to the clipboard.": "Einladungslink in die Zwischenablage kopiert.",
+	"Copy this invite link: {link}": "Kopiere diesen Einladungslink: {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Von StarHermit abgemeldet – der Fortschritt wird weiter auf diesem Gerät gespeichert.",
+	"Posting score to the leaderboard…": "Punktzahl wird an die Bestenliste gesendet…",
+	"Leaderboard rank: #{rank}": "Platz in der Bestenliste: #{rank}",
+	"Score posted to the leaderboard.": "Punktzahl an die Bestenliste gesendet.",
+	"Score not posted to the leaderboard.": "Punktzahl nicht an die Bestenliste gesendet.",
+});
+Object.assign(ES, {
+	"Graphics": "Gráficos",
+	"Open Options": "Abrir Opciones",
+	"Gamepad": "Control",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "El volumen, la calidad gráfica, el idioma, las teclas, el tamaño del texto, el alto contraste, el movimiento reducido y la vibración están en las Opciones de StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} apuntar y potencia, {strike} golpear, {cancel} cancelar, {hint} pista, {undo} deshacer, {ff} avance rápido, {pause} pausa",
+	"Sign in with StarHermit": "Iniciar sesión con StarHermit",
+	"Invite a friend": "Invitar a un amigo",
+	"Invite link copied to the clipboard.": "Enlace de invitación copiado al portapapeles.",
+	"Copy this invite link: {link}": "Copia este enlace de invitación: {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Se cerró la sesión de StarHermit; el progreso se sigue guardando en este dispositivo.",
+	"Posting score to the leaderboard…": "Enviando la puntuación a la clasificación…",
+	"Leaderboard rank: #{rank}": "Puesto en la clasificación: #{rank}",
+	"Score posted to the leaderboard.": "Puntuación enviada a la clasificación.",
+	"Score not posted to the leaderboard.": "La puntuación no se envió a la clasificación.",
+});
+Object.assign(ES_ES, {
+	"Graphics": "Gráficos",
+	"Open Options": "Abrir opciones",
+	"Gamepad": "Mando",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "El volumen, la calidad gráfica, el idioma, las teclas, el tamaño del texto, el alto contraste, el movimiento reducido y la vibración están en las Opciones de StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} apuntar y potencia, {strike} golpear, {cancel} cancelar, {hint} pista, {undo} deshacer, {ff} avance rápido, {pause} pausa",
+	"Sign in with StarHermit": "Iniciar sesión con StarHermit",
+	"Invite a friend": "Invitar a un amigo",
+	"Invite link copied to the clipboard.": "Enlace de invitación copiado al portapapeles.",
+	"Copy this invite link: {link}": "Copia este enlace de invitación: {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Se ha cerrado la sesión de StarHermit; el progreso se sigue guardando en este dispositivo.",
+	"Posting score to the leaderboard…": "Enviando la puntuación a la clasificación…",
+	"Leaderboard rank: #{rank}": "Puesto en la clasificación: #{rank}",
+	"Score posted to the leaderboard.": "Puntuación enviada a la clasificación.",
+	"Score not posted to the leaderboard.": "La puntuación no se ha enviado a la clasificación.",
+});
+Object.assign(FR, {
+	"Graphics": "Graphismes",
+	"Open Options": "Ouvrir les options",
+	"Gamepad": "Manette",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "Les volumes, la qualité graphique, la langue, les touches, la taille du texte, le contraste élevé, la réduction des animations et la vibration se trouvent dans les options StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} viser et puissance, {strike} frapper, {cancel} annuler, {hint} indice, {undo} défaire, {ff} avance rapide, {pause} pause",
+	"Sign in with StarHermit": "Se connecter avec StarHermit",
+	"Invite a friend": "Inviter un ami",
+	"Invite link copied to the clipboard.": "Lien d’invitation copié dans le presse-papiers.",
+	"Copy this invite link: {link}": "Copiez ce lien d’invitation : {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Déconnecté de StarHermit — la progression reste enregistrée sur cet appareil.",
+	"Posting score to the leaderboard…": "Envoi du score au classement…",
+	"Leaderboard rank: #{rank}": "Rang au classement : #{rank}",
+	"Score posted to the leaderboard.": "Score envoyé au classement.",
+	"Score not posted to the leaderboard.": "Score non envoyé au classement.",
+});
+Object.assign(FR_CA, {
+	"Graphics": "Graphismes",
+	"Open Options": "Ouvrir les options",
+	"Gamepad": "Manette",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "Les volumes, la qualité graphique, la langue, les touches, la taille du texte, le contraste élevé, la réduction des animations et la vibration se trouvent dans les options StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} viser et puissance, {strike} frapper, {cancel} annuler, {hint} indice, {undo} défaire, {ff} avance rapide, {pause} pause",
+	"Sign in with StarHermit": "Se connecter avec StarHermit",
+	"Invite a friend": "Inviter un ami",
+	"Invite link copied to the clipboard.": "Lien d’invitation copié dans le presse-papiers.",
+	"Copy this invite link: {link}": "Copiez ce lien d’invitation : {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Déconnecté de StarHermit — la progression reste enregistrée sur cet appareil.",
+	"Posting score to the leaderboard…": "Envoi du pointage au classement…",
+	"Leaderboard rank: #{rank}": "Rang au classement : #{rank}",
+	"Score posted to the leaderboard.": "Pointage envoyé au classement.",
+	"Score not posted to the leaderboard.": "Pointage non envoyé au classement.",
+});
+Object.assign(PT, {
+	"Graphics": "Gráficos",
+	"Open Options": "Abrir Opções",
+	"Gamepad": "Controle",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "Volumes, qualidade gráfica, idioma, teclas, tamanho do texto, alto contraste, movimento reduzido e vibração ficam nas Opções do StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} mirar e força, {strike} tacar, {cancel} cancelar, {hint} dica, {undo} desfazer, {ff} avançar, {pause} pausa",
+	"Sign in with StarHermit": "Entrar com StarHermit",
+	"Invite a friend": "Convidar um amigo",
+	"Invite link copied to the clipboard.": "Link de convite copiado para a área de transferência.",
+	"Copy this invite link: {link}": "Copie este link de convite: {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Você saiu do StarHermit — o progresso continua salvo neste dispositivo.",
+	"Posting score to the leaderboard…": "Enviando a pontuação para o placar…",
+	"Leaderboard rank: #{rank}": "Posição no placar: #{rank}",
+	"Score posted to the leaderboard.": "Pontuação enviada ao placar.",
+	"Score not posted to the leaderboard.": "Pontuação não enviada ao placar.",
+});
+Object.assign(IT, {
+	"Graphics": "Grafica",
+	"Open Options": "Apri Opzioni",
+	"Gamepad": "Gamepad",
+	"Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options.": "Volumi, qualità grafica, lingua, tasti, dimensione del testo, alto contrasto, movimento ridotto e vibrazione sono nelle Opzioni di StarHermit.",
+	"{aim} aim and power, {strike} strike, {cancel} cancel, {hint} hint, {undo} undo, {ff} fast-forward, {pause} pause": "{aim} mira e potenza, {strike} colpo, {cancel} annulla, {hint} suggerimento, {undo} annulla colpo, {ff} avanti veloce, {pause} pausa",
+	"Sign in with StarHermit": "Accedi con StarHermit",
+	"Invite a friend": "Invita un amico",
+	"Invite link copied to the clipboard.": "Link di invito copiato negli appunti.",
+	"Copy this invite link: {link}": "Copia questo link di invito: {link}",
+	"Signed out of StarHermit — progress keeps saving on this device.": "Disconnesso da StarHermit: i progressi continuano a essere salvati su questo dispositivo.",
+	"Posting score to the leaderboard…": "Invio del punteggio alla classifica…",
+	"Leaderboard rank: #{rank}": "Posizione in classifica: #{rank}",
+	"Score posted to the leaderboard.": "Punteggio inviato alla classifica.",
+	"Score not posted to the leaderboard.": "Punteggio non inviato alla classifica.",
+});
+
 const EN_GB = {
 	'Color-vision palette': 'Colour-vision palette',
 };
@@ -1225,5 +1340,5 @@ const STRINGS = {
 
 const api = { EN, STRINGS };
 if (typeof module !== 'undefined' && module.exports && typeof window === 'undefined') module.exports = api;
-else { window.PG = window.PG || {}; window.PG.strings = api; }
+else { globalThis.PG = globalThis.PG || {}; globalThis.PG.strings = api; }
 })();

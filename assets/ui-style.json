@@ -1,0 +1,329 @@
+{
+  "styles": {
+    ".h1": {
+      "text": {
+        "color": "$ink",
+        "size": 32,
+        "weight": "700"
+      }
+    },
+    ".h2": {
+      "text": {
+        "color": "$ink",
+        "size": 24,
+        "weight": "700"
+      }
+    },
+    ".h3": {
+      "text": {
+        "color": "$ink",
+        "size": 18.7,
+        "weight": "700"
+      }
+    },
+    ".body": {
+      "text": {
+        "color": "$ink"
+      }
+    },
+    ".bold": {
+      "text": {
+        "color": "$ink",
+        "weight": "700"
+      }
+    },
+    ".muted": {
+      "text": {
+        "color": "$ink-dim"
+      }
+    },
+    ".code": {
+      "text": {
+        "color": "$ink",
+        "font": "monospace"
+      }
+    },
+    ".btn": {
+      "background": "$panel-2",
+      "border": {
+        "width": 2,
+        "color": "#00000000",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 9.6,
+        "end": 16,
+        "bottom": 9.6,
+        "start": 16
+      },
+      "minWidth": 44,
+      "minHeight": 44,
+      "text": {
+        "color": "$ink",
+        "align": "center"
+      },
+      "hovered": {
+        "border": {
+          "color": "$accent"
+        }
+      },
+      "focusVisible": {
+        "focusRing": {
+          "width": 3,
+          "color": "$focus",
+          "offset": 2
+        }
+      },
+      "disabled": {
+        "opacity": 0.45
+      }
+    },
+    ".btn-primary": {
+      "background": "$accent",
+      "text": {
+        "color": "$primary-ink",
+        "weight": "700"
+      }
+    },
+    ".btn-danger": {
+      "background": "$danger",
+      "text": {
+        "color": "#ffffff"
+      }
+    },
+    ".btn-menu": {
+      "text": {
+        "align": "start"
+      }
+    },
+    ".btn-rail": {
+      "padding": {
+        "top": 5.6,
+        "end": 9.6,
+        "bottom": 5.6,
+        "start": 9.6
+      },
+      "minHeight": 38
+    },
+    ".btn-label": {
+      "text": {
+        "color": "$ink"
+      }
+    },
+    ".btn-label-primary": {
+      "text": {
+        "color": "$primary-ink",
+        "weight": "700"
+      }
+    },
+    ".btn-sub": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 13.3
+      }
+    },
+    ".btn-sub-primary": {
+      "text": {
+        "color": "$primary-sub",
+        "size": 13.3
+      }
+    },
+    ".btn-grid": {
+      "background": "$panel-2",
+      "border": {
+        "width": 2,
+        "color": "#00000000",
+        "style": "solid"
+      },
+      "radius": 10,
+      "padding": {
+        "top": 9.6,
+        "end": 16,
+        "bottom": 9.6,
+        "start": 16
+      },
+      "minHeight": 44,
+      "text": {
+        "color": "$ink",
+        "align": "start"
+      },
+      "hovered": {
+        "border": {
+          "color": "$accent"
+        }
+      },
+      "focusVisible": {
+        "focusRing": {
+          "width": 3,
+          "color": "$focus",
+          "offset": 2
+        }
+      },
+      "selected": {
+        "border": {
+          "color": "$accent-2"
+        }
+      },
+      "disabled": {
+        "opacity": 0.45
+      }
+    },
+    ".statusbar": {
+      "background": "$panel",
+      "padding": {
+        "top": 6.4,
+        "end": 12,
+        "bottom": 6.4,
+        "start": 12
+      }
+    },
+    ".objective": {
+      "text": {
+        "color": "$ink",
+        "weight": "600"
+      }
+    },
+    ".stat": {
+      "text": {
+        "color": "$ink-dim"
+      }
+    },
+    ".stat-b": {
+      "text": {
+        "color": "$ink",
+        "weight": "700"
+      }
+    },
+    ".rail": {
+      "background": "$panel-a",
+      "radius": 12,
+      "padding": 9.6
+    },
+    ".rail-h2": {
+      "text": {
+        "color": "$ink-dim",
+        "size": 15.2,
+        "weight": "700"
+      }
+    },
+    ".power-wrap": {
+      "background": "$panel-a",
+      "radius": 12,
+      "padding": {
+        "top": 6.4,
+        "end": 11.2,
+        "bottom": 6.4,
+        "start": 11.2
+      }
+    },
+    ".online-notice": {
+      "background": "$panel",
+      "border": {
+        "width": 1,
+        "color": "$danger",
+        "style": "solid"
+      },
+      "radius": 8,
+      "padding": {
+        "top": 8,
+        "end": 9.6,
+        "bottom": 8,
+        "start": 9.6
+      }
+    },
+    ".screen": {
+      "background": "$bg-a92"
+    },
+    ".screen-title": {
+      "background": "$bg-a68"
+    },
+    ".card": {
+      "background": "$panel",
+      "radius": 16,
+      "padding": {
+        "top": 20,
+        "end": 24,
+        "bottom": 20,
+        "start": 24
+      }
+    },
+    ".overlay": {
+      "background": "#0000008c"
+    },
+    ".overlay-card": {
+      "background": "$panel",
+      "radius": 16,
+      "padding": {
+        "top": 20,
+        "end": 24,
+        "bottom": 20,
+        "start": 24
+      }
+    },
+    ".setting-row": {
+      "padding": {
+        "top": 5.6,
+        "end": 0,
+        "bottom": 5.6,
+        "start": 0
+      }
+    },
+    ".th": {
+      "text": {
+        "color": "$ink",
+        "weight": "700"
+      }
+    },
+    ".td": {
+      "text": {
+        "color": "$ink"
+      }
+    },
+    ".td-b": {
+      "text": {
+        "color": "$ink",
+        "weight": "700"
+      }
+    },
+    ".captions": {
+      "background": "#000000bf",
+      "radius": 8,
+      "padding": {
+        "top": 4.8,
+        "end": 12.8,
+        "bottom": 4.8,
+        "start": 12.8
+      }
+    },
+    ".toast": {
+      "background": "$panel-2",
+      "radius": 10,
+      "padding": {
+        "top": 8,
+        "end": 16,
+        "bottom": 8,
+        "start": 16
+      }
+    }
+  },
+  "animations": {},
+  "tokens": {
+    "accent": "#7ec96e",
+    "accent-2": "#f2c14e",
+    "bg": "#1c2a1e",
+    "bg-a68": "#1c2a1ead",
+    "bg-a92": "#1c2a1eeb",
+    "danger": "#e06a5a",
+    "focus": "#ffd54e",
+    "ink": "#f0f4ec",
+    "ink-dim": "#b9c8b4",
+    "panel": "#24382a",
+    "panel-2": "#2d4534",
+    "panel-a": "#24382ae0",
+    "primary-ink": "#10220f",
+    "primary-sub": "#1f3d1d"
+  },
+  "layouts": {},
+  "dropped": []
+}

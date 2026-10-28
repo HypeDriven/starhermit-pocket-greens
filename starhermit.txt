@@ -1,17 +1,51 @@
 name=Pocket Greens
 description=Aim and putt through miniature garden golf courses, navigating obstacles in as few strokes as possible.
-launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=score-script.js
 cover=cover.jpg
-control.aim_left=ArrowLeft | Aim left
-control.aim_right=ArrowRight | Aim right
+
+# StarHermit engine script game: one package, played natively by the
+# StarHermit client and in browsers by the engine's web runtime. Browsers open
+# launch=index.html, the loader `npm run package` writes (it pins the engine
+# on wiki.starhermit.com by hash; never edit it). Re-run `npm run package`
+# after every change and commit index.html + starhermit-files.json.
+launch=index.html
+engine.api=1
+engine.entry=native/main.ts
+engine.version=1.19.3
+engine.minor=20
+engine.capabilities=platform,storage,clipboard
+
+# Keyboard controls (players rebind keys and pads in the runtime's Options).
+# Dragging back from the ball on the course aims and sets power (release
+# strikes); the power slider and the buttons work by pointer and touch.
+control.aim_left=ArrowLeft | Aim left (Shift: finer)
+control.aim_right=ArrowRight | Aim right (Shift: finer)
 control.power_up=ArrowUp | More power
 control.power_down=ArrowDown | Less power
 control.strike=Space+Enter+NumpadEnter | Strike
-control.cancel=Escape | Cancel aim / close
-control.pause=KeyP | Pause
-control.undo=KeyU | Undo
+control.cancel=Escape | Cancel aim / close / pause
+control.pause=KeyP | Pause / resume
+control.undo=KeyU | Undo (practice)
 control.hint=KeyH | Hint
 control.camera=KeyC | Reset camera
 control.fast_forward=KeyF | Fast-forward roll
+engine.group.aim_left=Aim and power
+engine.group.strike=Stroke
+engine.group.cancel=Game
+
+# Gamepad defaults: the D-pad or left stick aims (left/right) and sets power
+# (up/down), A strikes, B cancels / backs out, Y hints, X undoes, the right
+# shoulder fast-forwards a roll, the left shoulder resets the camera, Start
+# pauses.
+engine.gamepad.aim_left=DpadLeft+LeftStickLeft
+engine.gamepad.aim_right=DpadRight+LeftStickRight
+engine.gamepad.power_up=DpadUp+LeftStickUp
+engine.gamepad.power_down=DpadDown+LeftStickDown
+engine.gamepad.strike=South
+engine.gamepad.cancel=East
+engine.gamepad.pause=Start
+engine.gamepad.undo=West
+engine.gamepad.hint=North
+engine.gamepad.camera=LeftShoulder
+engine.gamepad.fast_forward=RightShoulder
