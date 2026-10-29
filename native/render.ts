@@ -25,7 +25,7 @@ import {
   ACESFilmicToneMapping, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry,
   DirectionalLight, DodecahedronGeometry, DoubleSide, Fog, Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, Line,
   LineBasicMaterial, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D,
-  PMREMGenerator, PerspectiveCamera, PlaneGeometry, Points, PointsMaterial, RepeatWrapping, RingGeometry,
+  OrthographicCamera, PMREMGenerator, PerspectiveCamera, PlaneGeometry, Points, PointsMaterial, RepeatWrapping, RingGeometry,
   RoomEnvironment, SRGBColorSpace, SphereGeometry, Vector2, Vector3, renderer, scene, type Material, type Texture,
 } from "starhermit:scene";
 import { ImageData, OffscreenCanvas } from "starhermit:canvas";
@@ -165,10 +165,10 @@ function stdMat(p: MatParams): Material {
 }
 
 // ---------------------------------------------------------------- lights, pooled effects, aim
-const keyLight = new DirectionalLight(0xfff1d6, 1.7 / PI);
+const keyLight = new DirectionalLight(0xfff1d6, 1.7);
 keyLight.shadow.bias = -0.0004;
-keyLight.shadow.normalBias = 1;
-const fill = new HemisphereLight(0xd6e8ff, 0x3a4a2c, 0.55 / PI);
+keyLight.shadow.normalBias = 0.02;
+const fill = new HemisphereLight(0xd6e8ff, 0x3a4a2c, 0.55);
 scene.add(keyLight, keyLight.target, fill);
 
 interface Particle { life: number; x: number; y: number; z: number; vx: number; vy: number; vz: number }
@@ -200,7 +200,11 @@ scene.add(marker);
 let envTex: Texture | null = null;
 function ensureEnv(): Texture | null {
   if (envTex) return envTex;
-  try { envTex = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture; }
+  try {
+    const room = new RoomEnvironment(renderer);
+    room.position.y = -3.5; // three.js r183+ lowers the room
+    envTex = new PMREMGenerator(renderer).fromScene(room, 0.04).texture;
+  }
   catch (e) { console.warn("environment:", e instanceof Error ? e.message : String(e)); }
   return envTex;
 }
@@ -455,7 +459,11 @@ function fitShadow(): void {
   keyLight.position.set(cx + KEY_OFFSET[0], KEY_OFFSET[1], cz + KEY_OFFSET[2]);
   keyLight.target.position.set(cx, 0, cz);
   keyLight.target.updateMatrixWorld();
-  keyLight.shadow.distance = Math.hypot(KEY_OFFSET[0], KEY_OFFSET[1], KEY_OFFSET[2]) + (Math.hypot(course.w, course.h) / 2 + SURROUND + 1) * 2;
+  const ext = Math.hypot(course.w, course.h) / 2 + SURROUND + 1;
+  const cam = keyLight.shadow.camera as OrthographicCamera;
+  cam.left = -ext; cam.right = ext; cam.top = ext; cam.bottom = -ext;
+  cam.near = 1; cam.far = Math.hypot(KEY_OFFSET[0], KEY_OFFSET[1], KEY_OFFSET[2]) + ext * 2;
+  cam.updateProjectionMatrix();
 }
 
 function ballMesh(id: string, color: number): Mesh {
@@ -541,7 +549,7 @@ function applyEnvironment(): void {
   const on = !!look?.reflections;
   scene.environment = on ? ensureEnv() : null;
   scene.environmentIntensity = 0.45;
-  fill.intensity = (on && envTex ? 0.38 : 0.55) / PI;
+  fill.intensity = on && envTex ? 0.38 : 0.55;
 }
 function applyPost(): void {
   if (!look) return;
