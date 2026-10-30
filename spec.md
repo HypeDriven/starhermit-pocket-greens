@@ -2,14 +2,14 @@
 
 Pocket Greens is turn-based miniature golf in a whimsical garden: aim, set power and hole out in as few
 strokes as possible across short courses with walls, stone planters, sand, water and moving keepers. It is a
-StarHermit engine **script game** (TypeScript on the host API 1.30), pinned to engine **1.28.0** with
-`engine.minor=30`, played natively by the StarHermit client and in browsers by the engine's web runtime.
+StarHermit engine **script game** (TypeScript on the host API 1.31), pinned to engine **1.29.0** with
+`engine.minor=31`, played natively by the StarHermit client and in browsers by the engine's web runtime.
 
 ## Files
 
 | Path | What it is |
 | --- | --- |
-| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.28.0 / minor 30, capabilities `platform,storage,clipboard`, actions and gamepad defaults, `server=score-script.js`. |
+| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.29.0 / minor 31, capabilities `platform,storage,clipboard`, actions and gamepad defaults, `server=score-script.js`. |
 | `js/rules.js` | Deterministic rules and physics (fixed 1/120 s steps, quantized state), legality, scoring, seeded streams. Shared with `server.js` and the node tests. |
 | `js/content.js` | Themes, 12 authored holes, 32 seeded procedural stages (Journey = 44), lessons, challenges, the daily course, validators. |
 | `js/session.js` | Rounds of holes, totals, practice undo, replay envelope, the deterministic practice AI. |
