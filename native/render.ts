@@ -566,7 +566,7 @@ function applyPost(): void {
   renderer.bloom = look.bloom ? { strength: 0.4, radius: 0.45, threshold: 0.9, resolution: look.budget.bloomRes } : null;
   // the old grade pass in display space: a 0.22 S-curve, +10 % saturation, warm highlights / cool shadows, the 0.2 vignette
   renderer.grade = look.grade ? {
-    space: "display", contrast: 0.11, saturation: 1.1,
+    space: "display", contrastCurve: "s", contrast: 0.22, saturation: 1.1,
     shadows: [0.97, 0.99, 1.04], highlights: [1.04, 1.01, 0.95], split: [0.2, 0.85],
     vignette: { amount: highContrast ? 0 : 0.2, inner: 0.4, outer: 0.9 },
   } : null;
