@@ -12,8 +12,8 @@
 // aim ticks on "interface", the ambience on "music" at the old ambience
 // volume (0.5) — the runtime has no ambience bus. The synthesized
 // fallbacks the browser build played while a clip loaded are not ported: a
-// clip not loaded yet is silent. Clips load once the mixer runs (natively
-// at once, in a browser after the first press), one at a time. Each event
+// clip not loaded yet is silent. Every clip loads at start; the bed waits
+// for the mixer (in a browser, the first press). Each event
 // also yields its caption text (the game's "Captions for sounds" option).
 import { context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
 import type { GameEvent } from "./classic.ts";
@@ -26,9 +26,6 @@ const NAMES = [
   "splash", "holed", "capped", "round-complete", "session-complete", "undo",
 ];
 const clips = new Map<string, AudioClip>();
-const queue: string[] = [];
-let loading = false;
-let wanted = false;
 
 function clipFor(e: GameEvent): string | null {
   switch (e.type) {
@@ -71,20 +68,18 @@ export function event(e: GameEvent): void {
   if (clip) {
     const ui = e.type === "ui" || e.type === "aim-tick";
     try { playClip(clip, { bus: ui ? "interface" : "effects", gain: EFFECTS }); }
-    catch { clips.delete(name!); load(name!); }
+    catch { /* the mixer is full this frame: skip it */ }
   }
   const cap = captionFor(e);
   if (cap && captionSink) captionSink(cap);
 }
 
-function load(name: string): void { if (!queue.includes(name) && !clips.has(name)) queue.push(name); }
-function pump(): void {
-  if (loading || !queue.length) return;
-  const name = queue.shift()!;
-  loading = true;
-  loadClip(`sfx/${name}.opus`).then((c) => { clips.set(name, c); loading = false; }, (e: unknown) => { console.warn(`sfx ${name}: ${String(e)}`); loading = false; });
+/** Loads every clip at once (onStart); a cue whose clip is still loading is silent. */
+export function init(): void {
+  for (const name of NAMES) {
+    loadClip(`sfx/${name}.opus`).then((c) => { clips.set(name, c); }, (e: unknown) => { console.warn(`sfx ${name}: ${String(e)}`); });
+  }
 }
-export function init(): void { wanted = true; }
 
 // ---- ambience
 const beds = new Map<string, AudioClip>();
@@ -116,14 +111,9 @@ export function setAmbience(kind: string | null): void { ambienceWanted = kind; 
 /** The window is hidden: the bed stops until it shows again. */
 export function setHidden(h: boolean): void { hidden = h; }
 
-/** Each frame: queue the clips once the mixer runs (one load at a time), keep the bed going. */
+/** Each frame: once the mixer runs, keep the bed going. */
 export function update(): void {
   if (context.state !== "running") return;
-  if (wanted) {
-    wanted = false;
-    for (const n of NAMES) load(n);
-  }
-  pump();
   const want = hidden ? null : ambienceWanted;
   if (want === ambienceKind && (ambience || !want)) return;
   try {

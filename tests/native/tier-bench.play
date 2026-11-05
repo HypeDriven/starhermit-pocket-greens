@@ -1,0 +1,49 @@
+# Tier bench: Practice hole j03 (the garden course), aim, one real stroke rolling out.
+# viewport 1280x800@1
+until 300 continue Journey
+frames 30
+click =Practice. Any hole, undo allowed, unranked
+until 60 Any hole, restart
+frames 10
+click j03 par 3
+frames 5
+click =Start
+until 120 Aim and strike
+frames 60
+until 900 Drag back
+frames 120
+measure start
+frames 120
+key KeyH 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+key ArrowLeft 1
+frames 3
+hold ShiftLeft
+frames 2
+key ArrowLeft 1
+frames 3
+release ShiftLeft
+frames 2
+key ArrowUp 1
+frames 3
+key ArrowUp 1
+frames 3
+key ArrowUp 1
+frames 3
+key ArrowUp 1
+frames 3
+key Space 1
+frames 480
+measure stop

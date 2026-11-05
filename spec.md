@@ -96,13 +96,13 @@ in the runtime's Options (the Help card lists the current bindings).
 
 ## Graphics
 
-The runtime's Options choose the graphics level; `native/quality.ts` maps its tier and level to the old
-presets: Low (Lambert materials, half-size textures, no shadows, no post, MSAA, flat colours), Balanced
+The runtime's Options choose the graphics level. Shadows, GTAO, bloom, grade and AA come from the engine's
+`levelSettings()` for the frame's level; `native/quality.ts` maps its tier to the old presets' art: Low (Lambert materials, half-size textures, no shadows, no post, no AA, flat colours), Balanced
 (standard materials, 1024 shadows, bloom, grade, FXAA, reflections from a RoomEnvironment, animated water,
 mowing stripes, wood grain, planter crowns, cup liner, waving flag, the garden: lawn into fog, hedges,
-flowers, tufts, trees, stepping stones, pollen), High (clear-coated balls, 2048 shadows, GTAO, SMAA) and
-Ultra (4096 shadows, full-resolution GTAO and bloom, double-size textures, MSAA). Particle and pollen budgets
-grow with the level within a tier (at most 2×). Light intensities are the r185 values ÷ π. High contrast or a
+flowers, tufts, trees, stepping stones, pollen), High (clear-coated balls, 2048 shadows, ½-res GTAO, ½-res bloom, SMAA) and
+Ultra (4096 shadows, full-resolution GTAO and bloom, double-size textures, MSAA 4). Particle and pollen budgets
+grow with the level's particle budget within a tier (at most 2×). Light intensities are the r185 values ÷ π. High contrast or a
 colour-vision palette paints the flag yellow and the aim arrow white and drops the vignette; reduced motion
 stills water, flag and pollen and plays rolls 6× faster.
 

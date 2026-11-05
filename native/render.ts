@@ -556,14 +556,14 @@ function applyPost(): void {
   const size = look.shadows;
   renderer.shadowMap.enabled = size > 0;
   keyLight.castShadow = size > 0;
-  if (size > 0) keyLight.shadow.mapSize = size;
-  const hi = look.ao === "high";
-  renderer.ao = look.ao === "off" ? null : {
-    blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1.0, samples: hi ? 16 : 8, resolution: look.budget.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: hi ? 6 : 4, rings: 2, samples: hi ? 16 : 8, radiusExponent: 2 },
+  if (size > 0) keyLight.shadow.mapSize = size; // the level's size: at minor ≥ 23 the engine keeps whatever the game sets
+  const ao = look.ao, hi = !!ao && ao.resolution >= 1;
+  renderer.ao = ao && {
+    blendIntensity: 0.75, radius: 0.45, distanceExponent: 1.4, thickness: 1.0, scale: 1.0, samples: ao.samples, resolution: ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: hi ? 6 : 4, rings: 2, samples: ao.denoiseSamples, radiusExponent: 2 },
   };
   // high threshold: only specular glints, the selection ring and bright highlights bloom
-  renderer.bloom = look.bloom ? { strength: 0.4, radius: 0.45, threshold: 0.9, resolution: look.budget.bloomRes } : null;
+  renderer.bloom = look.bloom === null ? null : { strength: 0.4, radius: 0.45, threshold: 0.9, resolution: look.bloom };
   // the old grade pass in display space: a 0.22 S-curve, +10 % saturation, warm highlights / cool shadows, the 0.2 vignette
   renderer.grade = look.grade ? {
     space: "display", contrastCurve: "s", contrast: 0.22, saturation: 1.1,
