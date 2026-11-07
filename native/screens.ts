@@ -239,7 +239,7 @@ function setupScreen(L: Layout): void {
       ui.row("stage-row", () => {
         ui.style("body").label(T("Stage"));
         ui.spacer();
-        const next = ui.style({ width: Math.min(260, w - 100) }).id("setup-stage").select(T("Stages"), setup.index, options);
+        const next = ui.id("setup-stage").select(T("Stages"), setup.index, options);
         if (next !== setup.index && !options[next]!.disabled) { setup.index = next; toast(() => T("Stage {n} selected", { n: next + 1 })); }
       }, { style: "setting-row", width: w, align: "center", spacing: 10 });
     } else if (mode === "practice") {
@@ -476,7 +476,7 @@ function settingsCard(L: Layout): void {
     ui.row("pal-row", () => {
       para(T("Color-vision palette"), w - Math.min(200, w * 0.5) - 10, "body", "pal-label");
       ui.spacer();
-      const next = ui.style({ width: Math.min(200, w * 0.5) }).id("set-palette").select(T("Color-vision palette"), idx, pals.map((p) => T("palette." + p)));
+      const next = ui.id("set-palette").select(T("Color-vision palette"), idx, pals.map((p) => T("palette." + p)));
       if (next !== idx) { platform.setSetting("palette", pals[next]!); settingsChanged(); }
     }, { style: "setting-row", width: w, align: "center", spacing: 10 });
     ui.style("h3").label(T("Controls"));
