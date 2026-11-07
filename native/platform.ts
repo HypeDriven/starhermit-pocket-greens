@@ -19,8 +19,7 @@
 //   with the rank on the `vs-par` board.
 import type { JsonValue } from "starhermit:engine";
 import {
-  connectGame, inviteLink as fetchInviteLink, leaderboards, onPlayerChange, player, serverNow, serverTime, sessions,
-  type Leaderboard,
+  inviteLink as fetchInviteLink, leaderboards, onPlayerChange, player, serverNow, serverTime,
 } from "starhermit:platform";
 import { saves, settings as store } from "starhermit:storage";
 import { ProgressDoc, type Progress } from "./classic.ts";
@@ -139,7 +138,6 @@ let invite: string | null = null;
 export function inviteLink(): string | null { return player() ? invite : null; }
 function refreshPlayer(): void {
   invite = null;
-  board = null;
   if (!player()) return;
   fetchInviteLink().then((u) => { invite = u; }, () => { invite = null; });
 }
@@ -154,49 +152,11 @@ export function nowMs(): number {
 
 // --- the vs-par board ------------------------------------------------------------------
 const BOARD = "vs-par";
-let board: Leaderboard | null = null;
-async function vsParBoard(): Promise<Leaderboard | null> {
-  if (board) return board;
-  const list = await leaderboards.list();
-  board = list.find((b) => b.key === BOARD) ?? null;
-  return board;
-}
-
 /** Signed in only: posts a finished round's strokes relative to par; { posted, rank }. Never rejects. */
 export async function postVsPar(vsPar: number): Promise<{ posted: boolean; rank: number | null }> {
-  const me = player();
-  if (!me) return { posted: false, rank: null };
-  const score = Math.round(vsPar);
-  let accepted: string[] = [];
+  if (!player()) return { posted: false, rank: null };
   try {
-    const sessionId = await sessions.practice();
-    accepted = await new Promise<string[]>((resolve) => {
-      const socket = connectGame(sessionId);
-      let done = false;
-      const finish = (list: string[]): void => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        socket.close();
-        resolve(list);
-      };
-      const timer = setTimeout(() => finish([]), 15000);
-      socket.on("open", () => { socket.sendCommand({ type: "result", scores: { [BOARD]: score } }); });
-      socket.on("game", (data) => {
-        const d = data as { type?: string; accepted?: string[] } | null;
-        if (d && d.type === "result-ack") finish(Array.isArray(d.accepted) ? d.accepted : []);
-      });
-      socket.on("error", () => finish([]));
-      socket.on("stopped", () => finish([]));
-      socket.on("abandoned", () => finish([]));
-    });
+    const r = await leaderboards.submitScore(BOARD, Math.round(vsPar));
+    return { posted: r.accepted, rank: r.rank };
   } catch { return { posted: false, rank: null }; }
-  if (!accepted.includes(BOARD)) return { posted: false, rank: null };
-  try {
-    const b = await vsParBoard();
-    if (!b) return { posted: true, rank: null };
-    const r = await leaderboards.entries(b.id, { pageSize: 100 });
-    const mine = r.items.find((e) => e.userId === me.userId);
-    return { posted: true, rank: mine ? mine.rank : null };
-  } catch { return { posted: true, rank: null }; }
 }

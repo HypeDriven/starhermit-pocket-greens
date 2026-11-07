@@ -13,7 +13,7 @@ StarHermit engine **script game** (TypeScript on the host API 1.38), pinned to e
 | `js/rules.js` | Deterministic rules and physics (fixed 1/120 s steps, quantized state), legality, scoring, seeded streams. Shared with `server.js` and the node tests. |
 | `js/content.js` | Themes, 12 authored holes, 32 seeded procedural stages (Journey = 44), lessons, challenges, the daily course, validators. |
 | `js/session.js` | Rounds of holes, totals, practice undo, replay envelope, the deterministic practice AI. |
-| `js/strings.js` | Player-facing strings keyed by the en-US text, nine locales. |
+| `assets/strings.json` | Player-facing strings keyed by the en-US text, nine locales, read by the engine's `strings` (account lines are its `starhermit.*`). |
 | `js/progress.js` | The progression save document, merge, round recording, achievements, the old settings migration. |
 | `native/main.ts` | State machine (title → mode-select → countdown → active ⇄ paused → resolving → results), rounds, input, trace playback, results and progression. |
 | `native/screens.ts` | All UI on `starhermit:ui`. |

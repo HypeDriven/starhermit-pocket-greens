@@ -2,12 +2,12 @@
 // and server.js: the deterministic rules and physics (js/rules.js), the
 // content (js/content.js: themes, the 12 authored holes, 32 seeded stages,
 // lessons, challenges, the daily), the session (js/session.js: holes,
-// totals, practice undo, the replay envelope, the practice AI), the string
-// tables (js/strings.js) and the progression save (js/progress.js),
+// totals, practice undo, the replay envelope, the practice AI) and the
+// progression save (js/progress.js),
 // evaluated as classic scripts that register on globalThis.PG.
 import { loadClassic } from "starhermit:script";
 
-for (const f of ["js/rules.js", "js/content.js", "js/session.js", "js/strings.js", "js/progress.js"]) loadClassic(f);
+for (const f of ["js/rules.js", "js/content.js", "js/session.js", "js/progress.js"]) loadClassic(f);
 
 export interface Zone { type: "rect" | "circle"; x: number; y: number; w?: number; h?: number; r?: number; material?: string }
 export interface Mover { type: "mover"; x: number; y: number; r: number; axis: "x" | "y"; amp: number; period: number; phase: number }
@@ -73,7 +73,6 @@ interface SessionModule {
   undo(s: Sess): boolean;
   aiStrike(s: Sess, id: string): Command | null;
 }
-interface StringsApi { EN: Record<string, string>; STRINGS: Record<string, Record<string, string>> }
 interface ProgressApi {
   ACHIEVEMENTS: { key: string; name: string; desc: string }[]; LEGACY_KEYS: string[]; GAME_SETTINGS: Record<string, unknown>; PALETTES: string[];
   blank(): Progress; seal(p: Progress): Progress; parse(j: unknown): Progress | null; merge(r: Progress | null, l: Progress | null): Progress; same(a: Progress, b: Progress): boolean;
@@ -82,9 +81,8 @@ interface ProgressApi {
   gameSettingsFrom(old: unknown): Record<string, unknown>;
 }
 
-const PG = (globalThis as unknown as { PG: { rules: RulesApi; content: ContentApi; session: SessionModule; strings: StringsApi; progress: ProgressApi } }).PG;
+const PG = (globalThis as unknown as { PG: { rules: RulesApi; content: ContentApi; session: SessionModule; progress: ProgressApi } }).PG;
 export const Rules = PG.rules;
 export const Content = PG.content;
 export const Session = PG.session;
-export const Strings = PG.strings;
 export const ProgressDoc = PG.progress;

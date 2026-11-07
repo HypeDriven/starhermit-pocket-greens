@@ -3,9 +3,8 @@
 // bounce by material, splash, holed, capped, round and session complete,
 // undo, invalid, UI click, aim tick), and the theme's quiet ambience bed
 // (a low sine with a slow swell: birds/wind/meadow 147 Hz, crickets 110 Hz,
-// still 196 Hz; the pond's swell faster), now rendered once into a looping
-// clip instead of a live oscillator graph (a live synthesis graph makes clip
-// loads fail on the engine's web runtime).
+// still 196 Hz; the pond's swell faster), rendered once by OfflineAudioContext
+// into a looping clip.
 //
 // The browser build's four buses become the runtime's (Options › Audio owns
 // volumes and mute): effects at the old effects volume (0.9), UI clicks and
@@ -15,7 +14,7 @@
 // clip not loaded yet is silent. Every clip loads at start; the bed waits
 // for the mixer (in a browser, the first press). Each event
 // also yields its caption text (the game's "Captions for sounds" option).
-import { context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
+import { OfflineAudioContext, context, createClip, loadClip, play as playClip, type AudioClip, type Sound } from "starhermit:audio";
 import type { GameEvent } from "./classic.ts";
 import { T } from "./i18n.ts";
 
@@ -87,24 +86,23 @@ let ambience: Sound | null = null;
 let ambienceKind: string | null = null;
 let ambienceWanted: string | null = null;
 let hidden = false;
-/** The browser build's oscillator bed as samples: a whole number of swells and carrier cycles, so it loops seamlessly. */
-function bedClip(kind: string): AudioClip {
-  let c = beds.get(kind);
-  if (c) return c;
+const bedsAsked = new Set<string>();
+/** The browser build's oscillator bed: a whole number of swells and carrier cycles, so it loops seamlessly. */
+async function renderBed(kind: string): Promise<AudioClip> {
   const rate = 22050;
   const lfoHz = kind === "water" ? 0.4 : 0.18;
   const len = Math.round(rate * (kind === "water" ? 5 : 50 / 9));
   const secs = len / rate;
   const base = kind === "crickets" ? 110 : kind === "still" ? 196 : 147;
-  const f = Math.round(base * secs) / secs, lf = Math.round(lfoHz * secs) / secs;
-  const data = new Float32Array(len);
-  for (let i = 0; i < len; i++) {
-    const t = i / rate;
-    data[i] = Math.sin(2 * Math.PI * f * t) * (0.05 + 0.025 * Math.sin(2 * Math.PI * lf * t));
-  }
-  c = createClip([data], rate);
-  beds.set(kind, c);
-  return c;
+  const off = new OfflineAudioContext(1, len, rate);
+  const carrier = off.createOscillator(); carrier.frequency.value = Math.round(base * secs) / secs;
+  const swell = off.createOscillator(); swell.frequency.value = Math.round(lfoHz * secs) / secs;
+  const depth = off.createGain(); depth.gain.value = 0.025;
+  const g = off.createGain(); g.gain.value = 0.05;
+  swell.connect(depth).connect(g.gain);
+  carrier.connect(g).connect(off.destination);
+  carrier.start(); swell.start();
+  return createClip(await off.startRendering());
 }
 /** The theme's ambience (null: none). */
 export function setAmbience(kind: string | null): void { ambienceWanted = kind; }
@@ -116,9 +114,17 @@ export function update(): void {
   if (context.state !== "running") return;
   const want = hidden ? null : ambienceWanted;
   if (want === ambienceKind && (ambience || !want)) return;
+  const bed = want ? beds.get(want) : undefined;
+  if (want && !bed) {
+    if (!bedsAsked.has(want)) {
+      bedsAsked.add(want);
+      renderBed(want).then((c) => { beds.set(want, c); }, (e: unknown) => console.warn(`ambience: ${String(e)}`));
+    }
+    return;
+  }
   try {
     if (ambience) { ambience.stop(); ambience = null; }
     ambienceKind = want;
-    if (want) ambience = playClip(bedClip(want), { bus: "music", gain: AMBIENCE, loop: true });
+    if (bed) ambience = playClip(bed, { bus: "music", gain: AMBIENCE, loop: true });
   } catch (e) { console.warn(`ambience: ${String(e)}`); ambience = null; }
 }

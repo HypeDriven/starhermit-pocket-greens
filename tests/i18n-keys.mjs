@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const { STRINGS, EN } = require('../js/strings.js');
+export const STRINGS = JSON.parse(readFileSync(join(root, 'assets/strings.json'), 'utf8'));
+export const EN = Object.fromEntries(Object.entries(STRINGS['en-US']).filter(([k, v]) => k !== v));
 const CONTENT = require('../js/content.js');
 const PROGRESS = require('../js/progress.js');
 

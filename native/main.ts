@@ -25,7 +25,7 @@ import * as ui from "starhermit:ui";
 import { onSessionEnded } from "starhermit:platform";
 import * as audio from "./audio.ts";
 import { Content, ProgressDoc, Rules, Session, type Challenge, type Command, type Course, type GameEvent, type Sess, type SessionResult, type TracePoint } from "./classic.ts";
-import { T } from "./i18n.ts";
+import { S, T } from "./i18n.ts";
 import * as platform from "./platform.ts";
 import { lookFor } from "./quality.ts";
 import * as render from "./render.ts";
@@ -697,7 +697,7 @@ onStart(() => {
 });
 onPreferencesChange(() => applyPrefs());
 platform.onProgressMerged(() => undefined);
-onSessionEnded(() => { toast(() => T("Signed out of StarHermit — progress keeps saving on this device.")); });
+onSessionEnded(() => { toast(() => S("signedOut")); });
 onSuspend(() => {
   // backgrounding pauses solo play; hosted play runs on
   if (G.session && G.mode !== "hosted" && G.machine === "active") pause();

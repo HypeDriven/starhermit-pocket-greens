@@ -20,7 +20,7 @@ import * as ui from "starhermit:ui";
 import { requestSignIn } from "starhermit:platform";
 import * as audio from "./audio.ts";
 import { Content, ProgressDoc } from "./classic.ts";
-import { T } from "./i18n.ts";
+import { S, T } from "./i18n.ts";
 import {
   G, app, canAim, canUndo, closeOverlay, coursePointer, currentCourse, doHint, doUndo, isOpponent, keeps, leave, localPlayerId,
   modeLabel, nextAction, objectiveText, openOverlay, openSetup, pause, playerLabel, replaying, restartHole, resultsNext,
@@ -34,11 +34,9 @@ import { COLORS, COLORS_HC } from "./style.ts";
 // ------------------------------------------------------------------ layout
 interface Layout { lw: number; lh: number; sc: number; ox: number; oy: number; phone: boolean; shortLand: boolean; mid: boolean }
 function layoutNow(): Layout {
-  const f = frame();
-  const sc = ui.preferences().scale;
-  const sa = f.safeArea;
-  const lw = Math.max(1, (f.width - sa.left - sa.right) / sc), lh = Math.max(1, (f.height - sa.top - sa.bottom) / sc);
-  return { lw, lh, sc, ox: sa.left, oy: sa.top, phone: lw <= 700, shortLand: lw > lh && lh <= 500, mid: lw <= 1023 };
+  const v = ui.viewport!();
+  const sc = v.scale, lw = Math.max(1, v.width), lh = Math.max(1, v.height);
+  return { lw, lh, sc, ox: v.x * sc, oy: v.y * sc, phone: lw <= 700, shortLand: lw > lh && lh <= 500, mid: lw <= 1023 };
 }
 const colors = (): typeof COLORS => (ui.preferences().highContrast ? COLORS_HC : COLORS);
 const lastHeight = new Map<string, number>();
@@ -181,14 +179,14 @@ function titleScreen(L: Layout): void {
       (p.mastery.bestDaily ? " • " + T("Best daily: {n}", { n: p.mastery.bestDaily }) : ""), w, "body", "title-progress");
     if (platform.signedIn()) para(T("Playing as {name} — progress syncs to your account", { name: platform.displayName() || "…" }), w, "muted", "title-account");
     const acct: Btn[] = [];
-    if (!platform.signedIn()) acct.push({ id: "m-signin", text: T("Sign in with StarHermit"), act: () => { void requestSignIn().catch(() => undefined); } });
+    if (!platform.signedIn()) acct.push({ id: "m-signin", text: S("signIn"), act: () => { void requestSignIn().catch(() => undefined); } });
     const link = platform.inviteLink();
     if (link) {
       acct.push({
-        id: "m-invite", text: T("Invite a friend"),
+        id: "m-invite", text: S("invite"),
         act: () => {
-          try { clipboard.writeText(link); toast(() => T("Invite link copied to the clipboard.")); }
-          catch { toast(() => T("Copy this invite link: {link}", { link })); }
+          try { clipboard.writeText(link); toast(() => S("inviteCopied")); }
+          catch { toast(() => S("inviteLink", { link })); }
         },
       });
     }
@@ -550,8 +548,8 @@ function resultsCard(L: Layout): void {
     if (lr.unlocked.length) para(T(lr.unlocked.length > 1 ? "New achievements:" : "New achievement:") + " " + lr.unlocked.map((n) => T(n)).join(", "), w, "bold", "res-ach");
     const lb = G.vsPar;
     if (lb) {
-      para(lb.state === "posting" ? T("Posting score to the leaderboard…") : lb.state === "notPosted" ? T("Score not posted to the leaderboard.")
-        : lb.state === "rank" ? T("Leaderboard rank: #{rank}", { rank: lb.rank ?? "" }) : T("Score posted to the leaderboard."), w, "muted", "res-lb");
+      para(lb.state === "posting" ? S("leaderboardPosting") : lb.state === "notPosted" ? S("leaderboardNotPosted")
+        : lb.state === "rank" ? S("leaderboardRank", { rank: lb.rank ?? "" }) : S("leaderboardPosted"), w, "muted", "res-lb");
     }
   }, (w) => {
     const next = nextAction();
