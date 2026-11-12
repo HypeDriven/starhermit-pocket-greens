@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Pocket Greens on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules and physics, content and session are
@@ -723,7 +724,11 @@ onUpdate((dt) => {
   if (app.toast && app.toast.until <= t) app.toast = null;
   if (app.caption && app.caption.until <= t) app.caption = null;
 });
-onRender(() => {
+onRender(__l10nRender(() => {
   drawScreens();
   render.update(frameDt, frame().time * 1000, G.machine === "paused");
-});
+}));
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);

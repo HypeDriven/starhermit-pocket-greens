@@ -1,3 +1,6 @@
+import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
+// localization-runtime:attached
+import { openLocalizedOptions as __l10nOptions } from "./l10n/menu.ts";
 // The browser build's DOM shell (index.html + ui.js) as starhermit:ui, built
 // every frame over the course view: the title card over a live garden hole
 // (menu with its subtitles, progress, the account line, sign-in / invite,
@@ -13,7 +16,22 @@
 // wrapping across the bottom) and short landscape (≤ 500 px tall: a
 // slimmer status bar, rails up to 60 %). The course view takes the
 // pull-back drag; the rails and tray take the pointer above it.
-import { clipboard, frame, openMenu } from "starhermit:engine";
+// The browser build's DOM shell (index.html + ui.js) as starhermit:ui, built
+// every frame over the course view: the title card over a live garden hole
+// (menu with its subtitles, progress, the account line, sign-in / invite,
+// Hosted Play when signed in), the mode setup card (Journey stage select,
+// Daily, Practice holes with the optional AI, Challenges), the hosted lobby,
+// and the game screen — the status bar (objective, hole, par, strokes,
+// total, cloud-save status, Pause), the Progress and Status rails over the
+// course, the stroke tray (power slider, Strike, Undo, Hint), sound
+// captions and the toast — with the Pause, Settings, Help and Results
+// cards. The old media queries are layouts picked by the window's logical
+// size: phone (≤ 700 px wide: the rails at the top, each under half the
+// width and at most 38 % of the course's height, scrolling; the tray
+// wrapping across the bottom) and short landscape (≤ 500 px tall: a
+// slimmer status bar, rails up to 60 %). The course view takes the
+// pull-back drag; the rails and tray take the pointer above it.
+import { clipboard, frame } from "starhermit:engine";
 import { bindings, primaryPointer } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
@@ -48,7 +66,7 @@ function textWidth(text: string, style: string | readonly string[], kind?: "butt
 function para(text: string, width: number, cls: string | readonly string[] = "body", id?: string): void {
   if (!text) return;
   const styles = typeof cls === "string" ? [cls] : [...cls];
-  let u = ui.style(...styles);
+  let u = ui.style(...__l10nStyle(styles));
   if (id) u = u.id(id);
   if (textWidth(text, styles) <= width) u.label(text);
   else u.paragraph(text, width);
@@ -77,9 +95,9 @@ function button(b: Btn, width: number | null = null): boolean {
       }, { spacing: 0, width: inner });
     };
   } else if (width != null && buttonWidth(b) > width) {
-    opts.content = () => { ui.style(...faceStyle(style), { text: { align: "center" } }).paragraph(b.text, inner); };
+    opts.content = () => { ui.style(...__l10nStyle(faceStyle(style)), __l10nStyle({ text: { align: "center" } })).paragraph(b.text, inner); };
   }
-  if (ui.style(...style, s).id(b.id).button(b.sub ? `${b.text}. ${b.sub}` : b.text, opts)) {
+  if (ui.style(...__l10nStyle(style), __l10nStyle(s)).id(b.id).button(b.sub ? `${b.text}. ${b.sub}` : b.text, opts)) {
     if (!b.silent) audio.event({ type: "ui" });
     b.act();
     return true;
@@ -158,7 +176,7 @@ function screenCard(key: string, L: Layout, dim: string, maxW: number, body: (w:
 function titleScreen(L: Layout): void {
   const p = platform.progress();
   screenCard("title", L, "screen-title", 544, (w) => {
-    ui.style("h1").id("title-h").heading("Pocket Greens");
+    ui.style(__l10nStyle("h1")).id("title-h").heading("Pocket Greens");
     para(T("A whimsical garden of miniature courses. Aim, set power, and hole out in the fewest strokes."), w, "body", "tagline");
     const items: Btn[] = [
       { id: "m-play", text: T("Play — continue Journey"), sub: T("Reach the green in two actions"), style: ["btn", "btn-primary", "btn-menu"], act: () => openSetup("journey") },
@@ -196,14 +214,14 @@ function titleScreen(L: Layout): void {
 
 // ------------------------------------------------------------------ setup
 function bullet(text: string, w: number, id: string, cls = "body"): void {
-  ui.row(`${id}-li`, () => { ui.style("body").label("•"); para(text, w - 22, cls, id); }, { spacing: 8, align: "start" });
+  ui.row(`${id}-li`, () => { ui.style(__l10nStyle("body")).label("•"); para(text, w - 22, cls, id); }, { spacing: 8, align: "start" });
 }
 function setupScreen(L: Layout): void {
   const p = platform.progress();
   const mode = setup.mode;
   const titles = { journey: T("Journey"), daily: T("Daily Challenge"), practice: T("Practice"), challenge: T("Challenges") };
   screenCard("setup", L, "screen", 544, (w) => {
-    ui.style("h2").id("setup-h").heading(titles[mode]);
+    ui.style(__l10nStyle("h2")).id("setup-h").heading(titles[mode]);
     let desc = "", duration = "", players = "1", assists = "", extra = "";
     if (mode === "journey") {
       desc = T("44 stages that introduce one concept at a time, then combine them. Mastery stages every chapter.");
@@ -237,7 +255,7 @@ function setupScreen(L: Layout): void {
         return { text: `${i + 1}. ${T("par {par}", { par: c.par })}${best ? " ★" + best : ""}${locked ? " — " + T("locked") : ""}`, disabled: locked };
       });
       ui.row("stage-row", () => {
-        ui.style("body").label(T("Stage"));
+        ui.style(__l10nStyle("body")).label(T("Stage"));
         ui.spacer();
         const next = ui.id("setup-stage").select(T("Stages"), setup.index, options);
         if (next !== setup.index && !options[next]!.disabled) { setup.index = next; toast(() => T("Stage {n} selected", { n: next + 1 })); }
@@ -275,7 +293,7 @@ function grid(label: string, list: Btn[], w: number, min: number): void {
 function lobbyScreen(L: Layout): void {
   const h = rooms.state();
   screenCard("lobby", L, "screen", 544, (w) => {
-    ui.style("h2").id("lobby-h").heading(T("Hosted Match"));
+    ui.style(__l10nStyle("h2")).id("lobby-h").heading(T("Hosted Match"));
     if (!h) return;
     if (h.room) para(T("Room {id}", { id: h.room.id }), w, "muted", "lobby-room");
     for (const pp of h.participants.slice(0, 2)) bullet(pp.displayName + (pp.id === h.myPid ? " " + T("(you)") : ""), w, `lobby-p-${pp.id}`);
@@ -337,7 +355,7 @@ function gameScreen(L: Layout): void {
     [T("Strokes"), `${me.strokes}${me.penalties ? ` (+${me.penalties})` : ""}`], [T("Total"), String(tot.strokes + tot.penalties)],
   ];
   const statItem = ([k, v]: [string, string], i: number): void => {
-    ui.row(`stat-${i}`, () => { ui.style("stat").label(k); ui.style("stat-b").id(`stat-v-${i}`).label(v); }, { spacing: 4, align: "center" });
+    ui.row(`stat-${i}`, () => { ui.style(__l10nStyle("stat")).label(k); ui.style(__l10nStyle("stat-b")).id(`stat-v-${i}`).label(v); }, { spacing: 4, align: "center" });
   };
   const pauseBtn = (): void => { button({ id: "btn-pause", text: T("⏸ Pause"), disabled: !G.session || G.machine === "results", act: pause }); };
   const sync = syncLabel();
@@ -346,9 +364,9 @@ function gameScreen(L: Layout): void {
     const one = textWidth(objective, "objective") + stats.reduce((a, s) => a + textWidth(s[0] + " " + s[1], "stat-b") + 20, 0) + (sync ? textWidth(sync, "stat") + 16 : 0) + 140;
     if (one <= L.lw - 24) {
       ui.row("sb-1", () => {
-        ui.style("objective").id("objective").label(objective);
+        ui.style(__l10nStyle("objective")).id("objective").label(objective);
         stats.forEach(statItem);
-        if (sync) ui.style("stat").id("sync").label(sync);
+        if (sync) ui.style(__l10nStyle("stat")).id("sync").label(sync);
         ui.spacer();
         pauseBtn();
       }, { spacing: 16, align: "center", width: L.lw - 24 });
@@ -359,7 +377,7 @@ function gameScreen(L: Layout): void {
       }, { spacing: 12, align: "center", width: L.lw - 24 });
       ui.row("sb-2", () => {
         statItem(stats[2]!, 2); statItem(stats[3]!, 3);
-        if (sync && L.lw > 420) ui.style("stat").id("sync").label(sync);
+        if (sync && L.lw > 420) ui.style(__l10nStyle("stat")).id("sync").label(sync);
         ui.spacer();
         pauseBtn();
       }, { spacing: 12, align: "center", width: L.lw - 24 });
@@ -373,7 +391,7 @@ function gameScreen(L: Layout): void {
   const gap = L.phone ? 6 : 8;
   const myTurn = st.phase === "aim" && !isOpponent(me.id);
   rail("rail-left", L, { x: gap, y: pf.y + gap }, railW, railMaxH, "start", (w) => {
-    ui.style("rail-h2").label(T("Progress").toUpperCase());
+    ui.style(__l10nStyle("rail-h2")).label(T("Progress").toUpperCase());
     para(modeLabel(), w, "body", "rail-mode");
     para(T("Seed: {seed}", { seed: sess.seed }), w, "body", "rail-seed");
     for (const id of Object.keys(sess.totals)) {
@@ -382,7 +400,7 @@ function gameScreen(L: Layout): void {
     }
   });
   rail("rail-right", L, { x: L.lw - gap - railW, y: pf.y + gap }, railW, railMaxH, "end", (w) => {
-    ui.style("rail-h2").label(T("Status").toUpperCase());
+    ui.style(__l10nStyle("rail-h2")).label(T("Status").toUpperCase());
     para(myTurn && !replaying() ? T("Drag back from the ball or use arrow keys. Power {n}%.", { n: Math.round(G.aim.power) })
       : isOpponent(me.id) ? T("Opponent turn") : T("Resolving…"), w, "body", "rail-status");
     const stop = rooms.stopReason();
@@ -403,10 +421,10 @@ function gameScreen(L: Layout): void {
   const trayR = ui.place("tray", { anchor: "top-start", x: (L.lw - trayW) / 2, y: L.lh - trayH - 8 }, () => {
     const power = (): void => {
       ui.row("power-wrap", () => {
-        ui.style("body").label(powerLabel);
+        ui.style(__l10nStyle("body")).label(powerLabel);
         const v = ui.id("power").slider(powerLabel, Math.round(G.aim.power), { min: 1, max: 100, step: 1, width: sliderW });
         if (act && v !== Math.round(G.aim.power)) setPower(v);
-        ui.style("bold").id("power-val").label(String(Math.round(G.aim.power)));
+        ui.style(__l10nStyle("bold")).id("power-val").label(String(Math.round(G.aim.power)));
       }, { style: "power-wrap", spacing: 8, align: "center" });
     };
     const btns: Btn[] = [
@@ -446,9 +464,9 @@ function overlayCard(key: string, L: Layout, title: string, body: (w: number) =>
   const tH = (lastHeight.get(`${key}:t`) ?? 32) + 8;
   const bodyMax = Math.max(60, room - fH - tH);
   const bh = lastHeight.get(`${key}:b`) ?? 0;
-  ui.style("overlay-card").dialog(key, "", true, () => {
+  ui.style(__l10nStyle("overlay-card")).dialog(key, "", true, () => {
     ui.column(`${key}-card`, () => {
-      remember(`${key}:t`, ui.style("h2").id(`${key}-h`).heading(title), L.sc);
+      remember(`${key}:t`, ui.style(__l10nStyle("h2")).id(`${key}-h`).heading(title), L.sc);
       const inside = (w: number): void => { remember(`${key}:b`, ui.column(`${key}-body`, () => body(w), { width: w, spacing: 8 }), L.sc); };
       if (bh > bodyMax + 1) ui.scrollArea(`${key}-scroll`, { width: inner, height: bodyMax }, () => inside(inner - 14), { scrollTo: frame().frame - app.openedFrame < 6 ? { top: 0 } : undefined });
       else inside(inner);
@@ -467,10 +485,10 @@ function pauseCard(L: Layout): void {
 }
 function settingsCard(L: Layout): void {
   overlayCard("settings", L, T("Settings"), (w) => {
-    ui.style("h3").label(T("Audio"));
+    ui.style(__l10nStyle("h3")).label(T("Audio"));
     const cap = ui.id("set-captions").checkbox(T("Captions for sounds"), settings.captions);
     if (cap !== settings.captions) { platform.setSetting("captions", cap); audio.event({ type: "ui" }); }
-    ui.style("h3").label(T("Graphics"));
+    ui.style(__l10nStyle("h3")).label(T("Graphics"));
     const pals = ProgressDoc.PALETTES;
     const idx = Math.max(0, pals.indexOf(settings.palette));
     ui.row("pal-row", () => {
@@ -479,20 +497,20 @@ function settingsCard(L: Layout): void {
       const next = ui.id("set-palette").select(T("Color-vision palette"), idx, pals.map((p) => T("palette." + p)));
       if (next !== idx) { platform.setSetting("palette", pals[next]!); settingsChanged(); }
     }, { style: "setting-row", width: w, align: "center", spacing: 10 });
-    ui.style("h3").label(T("Controls"));
+    ui.style(__l10nStyle("h3")).label(T("Controls"));
     ui.row("lessons-row", () => {
       para(T("Replay tutorials"), w - 170, "body", "lessons-label");
       ui.spacer();
       button({ id: "set-reset-lessons", text: T("Reset lessons"), act: () => { platform.setSetting("lessons", {}); toast(() => T("Lessons reset")); } });
     }, { style: "setting-row", width: w, align: "center", spacing: 10 });
     para(T("Sound volumes, graphics quality, language, key bindings, text size, high contrast, reduced motion and vibration are in the StarHermit Options."), w, "muted", "options-note");
-    button({ id: "set-options", text: T("Open Options"), act: () => openMenu() });
+    button({ id: "set-options", text: T("Open Options"), act: () => __l10nOptions() });
   }, (w) => { button({ id: "settings-close", text: T("Done"), style: ["btn", "btn-primary"], act: () => closeOverlay("settings") }, w); });
 }
 function helpCard(L: Layout): void {
   overlayCard("help", L, T("How to play"), (w) => {
     para(T("help.goal"), w, "body", "help-goal");
-    ui.style("h3").label(T("Controls"));
+    ui.style(__l10nStyle("h3")).label(T("Controls"));
     const k = keysFor;
     const rows: [string, string][] = [
       [T("Aim"), T("Drag from ball, or {left} / {right} rotate (hold Shift for fine)", { left: k("aim_left"), right: k("aim_right") })],
@@ -509,7 +527,7 @@ function helpCard(L: Layout): void {
       })],
     ];
     rows.forEach(([a, b], i) => bullet(`${a}: ${b}`, w, `help-c-${i}`));
-    ui.style("h3").label(T("Hazards"));
+    ui.style(__l10nStyle("h3")).label(T("Hazards"));
     ["help.water", "help.sand", "help.walls", "help.keepers"].forEach((key, i) => bullet(T(key), w, `help-h-${i}`));
     para(T("Fast balls can lip out of the cup — arrive softly."), w, "body", "help-lip");
   }, (w) => { button({ id: "help-close", text: T("Close"), style: ["btn", "btn-primary"], act: () => closeOverlay("help") }, w); });

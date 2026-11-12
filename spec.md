@@ -156,3 +156,11 @@ landscape (DPR 3).
   vibration option) are gone.
 - The old synthesized fallback sounds while a clip loads are not ported (a clip not yet loaded is silent).
 - Practice undo also undoes the AI's last stroke (as before: undo restores the state before the last command).
+
+<!-- regional-localization:start -->
+
+### Regional interface languages
+
+The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-SG`, `en-HK`, `en-BQ`, `es-CO`, `de-IT`, `fr-IT`, `es-CL`, `es-AR`, `es-EC`, `de-BR`. These reuse the corresponding existing translations in their language family. The runtime can resolve the exact regional tag. Language selection is available from the game’s Options panel or F2 and is saved per player in `ui.language`. Changes apply during play. Additional national, regional and indigenous language packs are only shipped once every English message has a translation with intact placeholders and markup. Complete additional language tables: `nl-BE`, `zh-SG`, `ms-SG`, `zh-HK`, `yue-HK`, `nl-NL`, `fi-FI`, `sv-FI`, `et-EE`, `id-ID`, `ta-SG`, `vi-VN`, `ja-JP`, `lb-BE`, `eu-FR`, `oc-FR`, `sl-IT`, `oc-IT`, `ru-FI`, `eu-ES`, `gl-ES`, `ru-EE`, `su-ID`, `km-VN`, `da-DE`, `co-FR`, `ca-FR`, `fur-IT`, `ca-IT`, `ca-ES`, `bew-ID`.
+
+<!-- regional-localization:end -->
