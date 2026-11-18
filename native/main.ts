@@ -73,7 +73,7 @@ export function announce(msg: string, assertive = false): void {
 }
 /** The toast (top centre, 2.6 s); `text` re-runs each frame so it follows a language change. */
 export function toast(text: () => string): void {
-  app.toast = { text, until: now() + 2.6 };
+  ui.toast!(text(), { duration: 2.6, position: "top", offset: 56, style: "toast", dismissible: false });
   announce(text());
 }
 audio.onCaption((text) => { if (settings.captions) app.caption = { text, until: now() + 2.4 }; });

@@ -128,7 +128,7 @@ function firstFocus(): string | null {
   if (app.screen === "lobby") return "lobby-back";
   return null;
 }
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   if (app.focusNext && frame().frame - app.openedFrame >= 2) {
     const first = firstFocus();
@@ -149,7 +149,6 @@ export function drawScreens(): void {
   else if (top === "help") helpCard(L);
   else if (top === "results") resultsCard(L);
   captions(L);
-  toastView(L);
 }
 
 // ------------------------------------------------------------------ cards on a dimmed screen
@@ -577,7 +576,7 @@ function resultsCard(L: Layout): void {
   });
 }
 
-// ------------------------------------------------------------------ captions and toast
+// ------------------------------------------------------------------ captions
 function chip(key: string, L: Layout, text: string, cls: string, yFromTop: number | null, yFromBottom: number | null): void {
   const maxW = Math.min(L.lw - 32, 560);
   const w = Math.min(maxW, textWidth(text, "body") + 34);
@@ -591,7 +590,10 @@ function captions(L: Layout): void {
   if (!app.caption) return;
   chip("captions", L, app.caption.text, "captions", null, (lastHeight.get("tray") ?? 52) + 24);
 }
-function toastView(L: Layout): void {
-  if (!app.toast) return;
-  chip("toast", L, app.toast.text(), "toast", (lastHeight.get("statusbar") ?? 44) + 12, null);
+
+export function drawScreens(): void {
+  if (!(topOverlay() === "help")) { drawScreensImmediate(); return; }
+  const actions = ["aim_left","aim_right","power_up","power_down","strike","cancel","pause","undo","hint","camera","fast_forward"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
 }
