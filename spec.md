@@ -2,14 +2,14 @@
 
 Pocket Greens is turn-based miniature golf in a whimsical garden: aim, set power and hole out in as few
 strokes as possible across short courses with walls, stone planters, sand, water and moving keepers. It is a
-StarHermit engine **script game** (TypeScript on the host API 1.44), pinned to engine **1.44.1** with
-`engine.minor=44`, played natively by the StarHermit client and in browsers by the engine's web runtime.
+StarHermit engine **script game** (TypeScript on the host API 1.47), pinned to engine **1.47.0** with
+`engine.minor=47`, played natively by the StarHermit client and in browsers by the engine's web runtime.
 
 ## Files
 
 | Path | What it is |
 | --- | --- |
-| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.44.1 / minor 31, capabilities `platform,storage,clipboard`, actions and gamepad defaults, `server=score-script.js`. |
+| `starhermit.txt` | Manifest: entry `native/main.ts`, engine 1.47.0 / minor 31, capabilities `platform,storage,clipboard`, actions and gamepad defaults, `server=score-script.js`. |
 | `js/rules.js` | Deterministic rules and physics (fixed 1/120 s steps, quantized state), legality, scoring, seeded streams. Shared with `server.js` and the node tests. |
 | `js/content.js` | Themes, 12 authored holes, 32 seeded procedural stages (Journey = 44), lessons, challenges, the daily course, validators. |
 | `js/session.js` | Rounds of holes, totals, practice undo, replay envelope, the deterministic practice AI. |
@@ -165,10 +165,14 @@ The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-S
 
 <!-- regional-localization:end -->
 
-## Engine 1.44.1
+## Engine 1.47.0
 
-Browser play uses the WebGPU-only StarHermit 1.44.1 web runtime. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
+Browser play uses the WebGPU-only StarHermit 1.47.0 web runtime. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
 
 The help screen replays through retained native UI while its contents, options, layout and key bindings are unchanged.
 
 Toasts use native engine stacking, styling, accessibility and lifetime management.
+
+Browser rendering uses the engine's asynchronous pipeline creation so newly encountered materials do not stall the page. Native play retains the engine's synchronous pipeline behavior.
+
+Higher graphics tiers use native per-object motion blur for moving pieces and effects. Camera motion stays sharp, lower tiers omit the effect, and the runtime's Motion blur and Reduce motion preferences remain authoritative.
