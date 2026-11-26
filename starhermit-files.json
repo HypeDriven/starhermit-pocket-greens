@@ -38,7 +38,7 @@
     "native/rooms.ts": {"sha256": "a98ab4f31ca38933468ca7f89192f6993abdfac390a120c5006784246716f181", "size": 11921},
     "native/screens.ts": {"sha256": "1835e17edd414c64196deb07a1fb036032961f8939a25ea6c5c24e72edfbdfa2", "size": 36584},
     "native/style.ts": {"sha256": "570c108cfd50f1151b18802f43022becc0e8cbf162794ecea48d545f4358ee46", "size": 2914},
-    "publication.json": {"sha256": "9140aa9a26cac15eff39d88319c43ca613e53c49eb5dd9c933e9966a01380642", "size": 4139},
+    "publication.json": {"sha256": "e5e7dd6028680d402456c093e7433d94b47db5db0a2902d23edcf41822832989", "size": 4139},
     "score-script.js": {"sha256": "bb6bfb2a2960172f652aad405887f605585b3b22fe08e4eb481b3cb29fb02268", "size": 2484},
     "sfx/aim-tick.opus": {"sha256": "b603c319158f5e2f5b67f1d05ceeb80adce277020c1ebbf0fe6ffe97254ab6b5", "size": 14139},
     "sfx/bounce-mover.opus": {"sha256": "2a28658189fc632df8f075a210958cc3b43ba2833cae35b529c130d1846721b1", "size": 13541},
