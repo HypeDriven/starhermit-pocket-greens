@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-09-01T07:01:05.728229+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-23T17:02:26.382265+00:00",
+    "coverArtUpdatedAt": "2026-11-26T14:59:35.639907+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-23T17:02:26.365099+00:00",
+      "deployedAt": "2026-11-26T14:59:34.442842+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.47.0",
+      "engineVersion": "1.50.0",
       "deployWarning": null
     },
     "description": "Aim and putt through miniature garden golf courses, navigating obstacles in as few strokes as possible.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-23T17:02:26.501Z",
-  "sourceCommit": "9129eee8d68cdf393d75566e3e02076a6552986c",
-  "bytesReceived": 1649126,
-  "archiveSha256": "182eee0fee6266d0ee6e6602ca998505a17447d915f8c336fe6faca78d8c1f51",
+  "publishedAt": "2026-11-26T14:59:34.818Z",
+  "sourceCommit": "7227923a56a90d7ae63127a0e8e30a8101f05b0e",
+  "bytesReceived": 1649137,
+  "archiveSha256": "bbd51ad44d23f6d99e30918c4e73464c98621a5e2ec469869137841a92238efc",
   "indexSha256": "bb5817bd317b5d0c3d1dae57f23d6b04a37ea1798770ea98597b5a8d5a054078",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 1649126,
+    "bytesReceived": 1649137,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.47.0",
+    "engineVersion": "1.50.0",
     "deployWarning": null
   },
   "liveVerification": {
